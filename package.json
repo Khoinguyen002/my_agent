@@ -1,0 +1,33 @@
+{
+  "name": "my-agent",
+  "version": "1.0.0",
+  "description": "TypeScript CLI agent powered by OpenRouter with Telegram integration",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "dev:telegram": "tsx src/index.ts --telegram",
+    "dev:watch": "tsx watch --ignore './data' src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:telegram": "node dist/index.js --telegram"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^5.1.2",
+    "better-sqlite3": "^11.1.2",
+    "dotenv": "^16.4.5",
+    "grammy": "^1.27.0",
+    "node-cron": "^3.0.3",
+    "@openrouter/sdk": "latest",
+    "uuid": "^10.0.0",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.14.10",
+    "@types/node-cron": "^3.0.11",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}
