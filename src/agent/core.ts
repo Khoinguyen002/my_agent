@@ -18,8 +18,9 @@ export class AgentCore {
     context: ToolContext,
     onDelta?: (delta: StreamDelta) => void,
     extraTools?: Tool[],
+    mediaUrls?: string[],
   ): Promise<string> {
-    appendMessage({ conversationId, role: 'user', content: input });
+    appendMessage({ conversationId, role: 'user', content: input, mediaUrls });
 
     const dbMessages = getMessages(conversationId);
     if (dbMessages.filter((m) => m.role === 'user').length === 1) {

@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 import { parseProviderString } from '../utils/format.js';
 import { appendMessage } from '../db/conversations.js';
 import type { ToolContext, StreamDelta } from '../types/index.js';
-import type { EasyInputMessage } from '@openrouter/sdk/models/easyinputmessage.js';
+import type { EasyInputMessage, EasyInputMessageContentInputImage } from '@openrouter/sdk/models/easyinputmessage.js';
 import type { FunctionCallItem } from '@openrouter/sdk/models/functioncallitem.js';
 import type { FunctionCallOutputItem } from '@openrouter/sdk/models/functioncalloutputitem.js';
 import type { InputsUnion1 } from '@openrouter/sdk/models/inputsunion.js';
@@ -17,6 +17,7 @@ import { logger } from '../utils/logger.js';
 export type DbMessage = {
   role: string;
   content: string;
+  mediaUrls?: string[];
   toolCallsJson?: string | null;
   toolCallId?: string | null;
 };
@@ -35,7 +36,23 @@ export function toResponsesInput(messages: DbMessage[]): InputItem[] {
   const result: InputItem[] = [];
   for (const msg of messages) {
     if (msg.role === 'user') {
-      const item: EasyInputMessage = { role: 'user', content: msg.content };
+      let item: EasyInputMessage;
+      if (msg.mediaUrls && msg.mediaUrls.length > 0) {
+        const imageParts: EasyInputMessageContentInputImage[] = msg.mediaUrls.map((url) => ({
+          type: 'input_image' as const,
+          imageUrl: url,
+          detail: 'auto' as const,
+        }));
+        item = {
+          role: 'user',
+          content: [
+            ...(msg.content ? [{ type: 'input_text' as const, text: msg.content }] : []),
+            ...imageParts,
+          ],
+        };
+      } else {
+        item = { role: 'user', content: msg.content };
+      }
       result.push(item);
     } else if (msg.role === 'assistant' && msg.toolCallsJson) {
       const toolCalls = JSON.parse(msg.toolCallsJson) as Array<{

@@ -12,6 +12,13 @@ export const db: DatabaseType = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// Migrate: add media_urls column if it doesn't exist yet
+try {
+  db.exec('ALTER TABLE messages ADD COLUMN media_urls TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
@@ -28,6 +35,7 @@ db.exec(`
     conversation_id TEXT NOT NULL REFERENCES conversations(id),
     role TEXT NOT NULL CHECK(role IN ('system','user','assistant','tool')),
     content TEXT NOT NULL,
+    media_urls TEXT,
     tool_call_id TEXT,
     tool_name TEXT,
     tool_calls_json TEXT,

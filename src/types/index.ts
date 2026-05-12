@@ -3,6 +3,7 @@ export interface Message {
   conversationId: string;
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  mediaUrls?: string[];
   toolCallId?: string;
   toolName?: string;
   toolCallsJson?: string;

@@ -17,6 +17,7 @@ interface MsgRow {
   conversation_id: string;
   role: string;
   content: string;
+  media_urls: string | null;
   tool_call_id: string | null;
   tool_name: string | null;
   tool_calls_json: string | null;
@@ -42,6 +43,7 @@ function rowToMessage(row: MsgRow): Message {
     conversationId: row.conversation_id,
     role: row.role as Message['role'],
     content: row.content,
+    mediaUrls: row.media_urls ? (JSON.parse(row.media_urls) as string[]) : undefined,
     toolCallId: row.tool_call_id ?? undefined,
     toolName: row.tool_name ?? undefined,
     toolCallsJson: row.tool_calls_json ?? undefined,
@@ -96,10 +98,11 @@ export function touchConversation(id: string): void {
 export function appendMessage(msg: Omit<Message, 'id' | 'createdAt'>): Message {
   const full: Message = { ...msg, id: uuidv4(), createdAt: Date.now() };
   db.prepare(`
-    INSERT INTO messages(id, conversation_id, role, content, tool_call_id, tool_name, tool_calls_json, reasoning_content, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO messages(id, conversation_id, role, content, media_urls, tool_call_id, tool_name, tool_calls_json, reasoning_content, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     full.id, full.conversationId, full.role, full.content,
+    full.mediaUrls ? JSON.stringify(full.mediaUrls) : null,
     full.toolCallId ?? null, full.toolName ?? null,
     full.toolCallsJson ?? null, full.reasoningContent ?? null,
     full.createdAt
