@@ -1,7 +1,7 @@
 export interface Message {
   id: string;
   conversationId: string;
-  role: 'system' | 'user' | 'assistant' | 'tool';
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
   toolCallId?: string;
   toolName?: string;
@@ -13,7 +13,7 @@ export interface Message {
 export interface Conversation {
   id: string;
   title: string;
-  source: 'cli' | 'telegram' | 'cron';
+  source: "cli" | "telegram" | "cron";
   telegramChatId?: number;
   cronJobId?: string;
   createdAt: number;
@@ -23,7 +23,7 @@ export interface Conversation {
 export interface UserProfile {
   id: string;
   name: string;
-  source: 'cli' | 'telegram';
+  source: "cli" | "telegram";
   sourceId: string;
   expectations?: string;
   onboardedAt: number;
@@ -38,29 +38,37 @@ export interface CronJob {
   enabled: boolean;
   telegramChatId?: number;
   lastRunAt?: number;
-  lastRunStatus?: 'success' | 'error';
+  lastRunStatus?: "success" | "error";
   createdAt: number;
   updatedAt: number;
 }
 
 export interface ToolContext {
-  conversationId: string;
-  source: 'cli' | 'telegram' | 'cron';
-  telegramChatId?: number;
+  telegram: {
+    conversationId: string;
+    telegramChatId?: number;
+  };
+  source: "cli" | "telegram" | "cron";
   requestApproval: (description: string) => Promise<boolean>;
 }
 
-export interface RouterDecision {
-  toolCalls: Array<{
-    toolName: string;
-    arguments: Record<string, unknown>;
-    callId: string;
-  }>;
-}
+export type AgentInput =
+  | {
+      caption: string;
+      base64: string;
+    }
+  | string;
 
 export interface StreamDelta {
-  type: 'reasoning' | 'content' | 'tool_call_delta' | 'done'
-    | 'router_decision' | 'tool_start' | 'tool_end' | 'tool_skipped';
+  type:
+    | "reasoning"
+    | "content"
+    | "tool_call_delta"
+    | "done"
+    | "router_decision"
+    | "tool_start"
+    | "tool_end"
+    | "tool_skipped";
   text?: string;
   toolCallIndex?: number;
   // router_decision
