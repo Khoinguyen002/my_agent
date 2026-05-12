@@ -79,9 +79,8 @@ export class AgentCore {
         });
         return response.choices[0].message.content;
       } catch (error) {
-        logger.error("Model call failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        console.log(error);
+        throw new Error(error instanceof Error ? error.message : String(error));
       }
     }
 

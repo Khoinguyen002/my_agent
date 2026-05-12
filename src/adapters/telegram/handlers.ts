@@ -118,9 +118,7 @@ export function registerHandlers(bot: Bot): void {
       const response = await agentCore.run(
         {
           caption,
-          base64: await imageToBase64(
-            await getTelegramFileUrl(bot, bestPhoto.file_id),
-          ),
+          base64: await getTelegramFileUrl(bot, bestPhoto.file_id),
         },
         {
           telegram: { conversationId, telegramChatId: chatId },
@@ -158,7 +156,6 @@ export function registerHandlers(bot: Bot): void {
     await ctx.replyWithChatAction("typing");
 
     const conversationId = getOrCreateConversation(chatId);
-    console.log("conversationId", conversationId);
     const sendMessage = async (msg: string) => {
       await ctx.reply(msg);
     };
