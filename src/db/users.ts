@@ -1,28 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './client.js';
-import type { UserProfile } from '../types/index.js';
+import { rowToProfile } from './utils/user.js';
+import { UserProfile, UserRow } from './types/user/index.js';
 
-interface UserRow {
-  id: string;
-  name: string;
-  source: string;
-  source_id: string;
-  expectations: string | null;
-  onboarded_at: number;
-  created_at: number;
-}
 
-function rowToProfile(row: UserRow): UserProfile {
-  return {
-    id: row.id,
-    name: row.name,
-    source: row.source as UserProfile['source'],
-    sourceId: row.source_id,
-    expectations: row.expectations ?? undefined,
-    onboardedAt: row.onboarded_at,
-    createdAt: row.created_at,
-  };
-}
 
 export function getUserBySourceId(source: UserProfile['source'], sourceId: string): UserProfile | undefined {
   const row = db.prepare('SELECT * FROM user_profiles WHERE source = ? AND source_id = ?').get(source, sourceId) as UserRow | undefined;

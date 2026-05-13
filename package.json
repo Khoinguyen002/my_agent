@@ -12,12 +12,15 @@
     "start:telegram": "node dist/index.js --telegram"
   },
   "dependencies": {
+    "@fastify/multipart": "^8.0.0",
     "@inquirer/prompts": "^5.1.2",
+    "@openrouter/sdk": "latest",
     "better-sqlite3": "^11.1.2",
     "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
+    "googleapis": "^144.0.0",
     "grammy": "^1.27.0",
     "node-cron": "^3.0.3",
-    "@openrouter/sdk": "latest",
     "uuid": "^10.0.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.0"

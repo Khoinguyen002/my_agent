@@ -1,54 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
 import { db } from "./client.js";
-import type { Conversation, Message } from "../types/index.js";
+import { Conversation, ConvRow, MsgRow } from "./types/conversation/index.js";
+import { Message } from "../types/index.js";
+import { rowToConversation, rowToMessage } from "./utils/conversation.js";
 
-interface ConvRow {
-  id: string;
-  title: string;
-  source: string;
-  telegram_chat_id: number | null;
-  cron_job_id: string | null;
-  created_at: number;
-  updated_at: number;
-}
 
-interface MsgRow {
-  id: string;
-  conversation_id: string;
-  role: string;
-  content: string;
-  tool_call_id: string | null;
-  tool_name: string | null;
-  tool_calls_json: string | null;
-  reasoning_content: string | null;
-  created_at: number;
-}
 
-function rowToConversation(row: ConvRow): Conversation {
-  return {
-    id: row.id,
-    title: row.title,
-    source: row.source as Conversation["source"],
-    telegramChatId: row.telegram_chat_id ?? undefined,
-    cronJobId: row.cron_job_id ?? undefined,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
 
-function rowToMessage(row: MsgRow): Message {
-  return {
-    id: row.id,
-    conversationId: row.conversation_id,
-    role: row.role as Message["role"],
-    content: row.content,
-    toolCallId: row.tool_call_id ?? undefined,
-    toolName: row.tool_name ?? undefined,
-    toolCallsJson: row.tool_calls_json ?? undefined,
-    reasoningContent: row.reasoning_content ?? undefined,
-    createdAt: row.created_at,
-  };
-}
 
 export function createConversation(opts: {
   title?: string;
@@ -87,6 +45,17 @@ export function getConversation(id: string): Conversation | undefined {
   const row = db.prepare("SELECT * FROM conversations WHERE id = ?").get(id) as
     | ConvRow
     | undefined;
+  return row ? rowToConversation(row) : undefined;
+}
+
+export function getConversationByTelegramChatId(
+  chatId: number,
+): Conversation | undefined {
+  const row = db
+    .prepare(
+      "SELECT * FROM conversations WHERE telegram_chat_id = ? ORDER BY updated_at DESC LIMIT 1",
+    )
+    .get(chatId) as ConvRow | undefined;
   return row ? rowToConversation(row) : undefined;
 }
 
@@ -150,3 +119,5 @@ export function getMessages(conversationId: string): Message[] {
     .all(conversationId) as MsgRow[];
   return rows.map(rowToMessage);
 }
+
+

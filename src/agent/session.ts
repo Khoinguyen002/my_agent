@@ -1,5 +1,5 @@
 import { createConversation, getConversation } from '../db/conversations.js';
-import type { Conversation } from '../types/index.js';
+import { Conversation } from '../db/types/conversation/index.js';
 
 export class AgentSession {
   private _conversationId: string | null = null;

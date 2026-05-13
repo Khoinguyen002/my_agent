@@ -10,25 +10,7 @@ export interface Message {
   createdAt: number;
 }
 
-export interface Conversation {
-  id: string;
-  title: string;
-  source: "cli" | "telegram" | "cron";
-  telegramChatId?: number;
-  cronJobId?: string;
-  createdAt: number;
-  updatedAt: number;
-}
 
-export interface UserProfile {
-  id: string;
-  name: string;
-  source: "cli" | "telegram";
-  sourceId: string;
-  expectations?: string;
-  onboardedAt: number;
-  createdAt: number;
-}
 
 export interface CronJob {
   id: string;
@@ -44,20 +26,23 @@ export interface CronJob {
 }
 
 export interface ToolContext {
-  telegram: {
-    conversationId: string;
-    telegramChatId?: number;
-  };
-  source: "cli" | "telegram" | "cron";
+  conversationId: string;
   requestApproval: (description: string) => Promise<boolean>;
 }
 
-export type AgentInput =
+export type AgentContentPart =
   | {
-      caption: string;
-      base64: string;
+      type: "text";
+      text: string;
     }
-  | string;
+  | {
+      type: "image_url";
+      url: string;
+    };
+
+export type AgentInput = {
+  parts: AgentContentPart[];
+};
 
 export interface StreamDelta {
   type:

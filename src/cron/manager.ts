@@ -2,11 +2,18 @@ import cron from 'node-cron';
 import { v4 as uuidv4 } from 'uuid';
 import { loadCrons, saveCrons } from './store.js';
 import { agentCore } from '../agent/core.js';
-import { createConversation } from '../db/conversations.js';
-import type { CronJob, ToolContext } from '../types/index.js';
+import {
+  appendMessage,
+  createConversation,
+  getMessages,
+} from '../db/conversations.js';
+import type { AgentInput, CronJob, ToolContext } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { createTelegramSendTool } from '../tools/implementations/telegram-send.js';
 import { getTelegramBot } from '../adapters/telegram/bot.js';
+import { truncateMessages } from '../utils/history.js';
+
+const HISTORY_LIMIT = 20;
 
 export class CronManager {
   private jobs: CronJob[] = [];
@@ -86,8 +93,6 @@ export class CronManager {
 
     const context: ToolContext = {
       conversationId: conv.id,
-      source: 'cron',
-      telegramChatId: job.telegramChatId,
       requestApproval: async () => false, // cron never approves sensitive tools
     };
 
@@ -95,8 +100,12 @@ export class CronManager {
       ? [createTelegramSendTool(job.telegramChatId, getTelegramBot)]
       : [];
 
+    appendMessage({ conversationId: conv.id, role: 'user', content: job.prompt });
+    const history = truncateMessages(getMessages(conv.id), HISTORY_LIMIT);
+    const input: AgentInput = { parts: [{ type: 'text', text: job.prompt }] };
+
     try {
-      await agentCore.run(job.prompt, conv.id, context, undefined, extraTools);
+      await agentCore.run(input, context, { history, extraTools });
       this.updateJobStatus(job.id, 'success');
     } catch (err) {
       logger.error(`Cron failed: ${job.name}`, err);

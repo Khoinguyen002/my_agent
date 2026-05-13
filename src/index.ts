@@ -9,6 +9,7 @@ import { toolRegistry } from './tools/registry.js';
 import { cronCreateTool, cronDeleteTool, cronListTool } from './tools/implementations/cron-manager.js';
 import { cronManager } from './cron/manager.js';
 import { createTelegramBot, startTelegramBot } from './adapters/telegram/bot.js';
+import { startApiServer } from './adapters/api/server.js';
 import { runCliOnboarding } from './agent/onboarding.js';
 import { startRepl } from './adapters/cli/repl.js';
 import { logger } from './utils/logger.js';
@@ -17,6 +18,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const withTelegram = args.includes('--telegram') || Boolean(env.telegramBotToken);
   const cronOnly = args.includes('--cron-only');
+  const withApi = args.includes('--api') || env.apiPort > 0;
   const isTTY = process.stdin.isTTY;
   const runCli = !cronOnly && isTTY;
 
@@ -56,6 +58,10 @@ async function main(): Promise<void> {
   if (withTelegram && env.telegramBotToken) {
     const bot = createTelegramBot(env.telegramBotToken);
     void startTelegramBot(bot).catch((err) => logger.error('Telegram bot crashed', err));
+  }
+
+  if (withApi) {
+    void startApiServer().catch((err) => logger.error('API server crashed', err));
   }
 
   if (runCli) {

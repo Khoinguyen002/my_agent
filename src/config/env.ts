@@ -15,6 +15,11 @@ function optional(name: string, fallback: string): string {
   return process.env[name] || fallback;
 }
 
+function toNumber(val: string): number {
+  const parsed = Number(val);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export const env = {
   openrouterApiKey: require('OPENROUTER_API_KEY'),
   model: require('MODEL'),
@@ -24,4 +29,20 @@ export const env = {
   contextCompression: process.env['CONTEXT_COMPRESSION'] === '1',
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'],
   dataDir: optional('DATA_DIR', './data'),
+  apiPort: toNumber(optional('API_PORT', '0')),
+  maxOutputTokens: toNumber(optional('MAX_OUTPUT_TOKENS', '4096')),
+  productHints: optional('PRODUCT_HINTS', '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean),
+  // Google Drive service account JSON (stringified)
+  googleServiceAccountJson: optional('GOOGLE_SERVICE_ACCOUNT_JSON', ''),
+  // Google OAuth (user) credentials
+  googleOAuthClientId: optional('GOOGLE_OAUTH_CLIENT_ID', ''),
+  googleOAuthClientSecret: optional('GOOGLE_OAUTH_CLIENT_SECRET', ''),
+  googleOAuthRefreshToken: optional('GOOGLE_OAUTH_REFRESH_TOKEN', ''),
+  // Optional Drive folder ID to upload files
+  driveFolderId: optional('DRIVE_FOLDER_ID', ''),
+  // Set to "0" to skip making files public
+  drivePublic: optional('DRIVE_PUBLIC', '1') === '1',
 } as const;

@@ -5,7 +5,15 @@ import { AgentSession } from "../../agent/session.js";
 import { TerminalRenderer } from "./renderer.js";
 import { handleCommand } from "./commands.js";
 import type { CronManager } from "../../cron/manager.js";
-import type { ToolContext } from "../../types/index.js";
+import type { AgentInput, ToolContext } from "../../types/index.js";
+import {
+  appendMessage,
+  getMessages,
+  updateConversationTitle,
+} from "../../db/conversations.js";
+import { truncateMessages } from "../../utils/history.js";
+
+const HISTORY_LIMIT = 20;
 
 export async function startRepl(cronManager: CronManager): Promise<void> {
   // Onboarding already ran in index.ts; just fetch the saved profile
@@ -66,8 +74,7 @@ export async function startRepl(cronManager: CronManager): Promise<void> {
 
       // Build tool context with CLI approval
       const context: ToolContext = {
-        telegram: { conversationId },
-        source: "cli",
+        conversationId,
         requestApproval: (description) => {
           return new Promise((resolve) => {
             const approvalRl = readline.createInterface({
@@ -87,7 +94,20 @@ export async function startRepl(cronManager: CronManager): Promise<void> {
 
       process.stdout.write("\n");
 
-      await agentCore.run(trimmed, context, (delta) => renderer.feed(delta));
+      appendMessage({ conversationId, role: "user", content: trimmed });
+      const dbMessages = getMessages(conversationId);
+      if (dbMessages.filter((m) => m.role === "user").length === 1) {
+        const title =
+          trimmed.slice(0, 60) + (trimmed.length > 60 ? "..." : "");
+        updateConversationTitle(conversationId, title);
+      }
+      const history = truncateMessages(dbMessages, HISTORY_LIMIT);
+      const input: AgentInput = { parts: [{ type: "text", text: trimmed }] };
+
+      await agentCore.run(input, context, {
+        history,
+        onDelta: (delta) => renderer.feed(delta),
+      });
       renderer.finish();
     } catch (err) {
       console.error(`\n\x1b[31mError: ${String(err)}\x1b[0m\n`);
