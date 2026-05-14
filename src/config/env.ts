@@ -35,8 +35,6 @@ export const env = {
     .split(',')
     .map((name) => name.trim())
     .filter(Boolean),
-  // Google Drive service account JSON (stringified)
-  googleServiceAccountJson: optional('GOOGLE_SERVICE_ACCOUNT_JSON', ''),
   // Google OAuth (user) credentials
   googleOAuthClientId: optional('GOOGLE_OAUTH_CLIENT_ID', ''),
   googleOAuthClientSecret: optional('GOOGLE_OAUTH_CLIENT_SECRET', ''),

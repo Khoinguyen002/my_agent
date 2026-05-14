@@ -14,6 +14,7 @@ import type { ChatMessages } from '@openrouter/sdk/models/chatmessages.js';
 import type { ChatContentItems } from '@openrouter/sdk/models/chatcontentitems.js';
 import type { ChatContentText } from '@openrouter/sdk/models/chatcontenttext.js';
 import type { ChatContentImage } from '@openrouter/sdk/models/chatcontentimage.js';
+import type { ResponseFormat } from '@openrouter/sdk/models/chatrequest.js';
 import { tool } from '@openrouter/sdk/lib/tool.js';
 import { maxTokensUsed, stepCountIs } from '@openrouter/sdk/lib/stop-conditions.js';
 import { logger } from '../utils/logger.js';
@@ -30,6 +31,7 @@ export type CallModelOptions = {
   onTurnEnd?: (ctx: TurnContext, response: OpenResponsesResult) => void | Promise<void>;
   /** Per-tool context data injected via contextSchema (e.g. { cron_create: { telegramChatId: 123 } }) */
   sdkContext?: Record<string, Record<string, unknown>>;
+  responseFormat?: ResponseFormat;
 };
 
 type InputItem = InputsUnion1;
@@ -190,14 +192,15 @@ export async function callModel(
       model: env.model,
       historyItems: history.length,
     });
+
     const response = await openrouterClient.chat.send({
       chatRequest: {
         model: env.model,
         messages: toChatMessages(history, systemPrompt, input),
-        // ...(env.maxOutputTokens > 0 && {
-        //   maxCompletionTokens: env.maxOutputTokens,
-        // }),
-        // ...(provider && { provider }),
+        ...(opts.responseFormat && { responseFormat: opts.responseFormat }),
+        ...(env.maxOutputTokens > 0 && { maxCompletionTokens: env.maxOutputTokens }),
+        ...(provider && { provider }),
+        tools: sdkTools,
       },
     });
 
@@ -224,6 +227,7 @@ export async function callModel(
     model: env.model,
     instructions: systemPrompt,
     input: inputItems,
+    ...(opts.responseFormat && { responseFormat: opts.responseFormat }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: sdkTools,
     ...(env.contextCompression && {
