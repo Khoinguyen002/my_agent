@@ -102,7 +102,7 @@ export class CronManager {
 
     appendMessage({ conversationId: conv.id, role: 'user', content: job.prompt });
     const history = truncateMessages(getMessages(conv.id), HISTORY_LIMIT);
-    const input: AgentInput = { parts: [{ type: 'text', text: job.prompt }] };
+    const input: AgentInput = { userPrompt: { text: job.prompt } };
 
     try {
       await agentCore.run(input, context, { history, extraTools });

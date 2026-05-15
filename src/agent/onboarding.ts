@@ -1,5 +1,5 @@
 import { getUserBySourceId, saveUserProfile } from '../db/users.js';
-import type { UserProfile } from '../types/index.js';
+import type { UserProfile } from '../db/types/user/index.js';
 
 export async function runCliOnboarding(): Promise<UserProfile> {
   const existing = getUserBySourceId('cli', 'cli');
