@@ -9,7 +9,7 @@ import { parseProvidersString } from '../utils/format.js';
 import { logger } from '../utils/logger.js';
 import { openrouterClient } from './client.js';
 import { agentInputToChatMessage, agentInputToInputsUnion1 } from './helpers/index.js';
-import { callOpenAICompatModel } from './openai-client.js';
+import { callOpenAICompatModel } from './openai-model.js';
 
 export type CallModelResult = {
   kind: 'stream';

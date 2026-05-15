@@ -12,7 +12,7 @@ import type { EventStream } from '@openrouter/sdk/lib/event-streams.js';
 import type { ModelResult } from '@openrouter/sdk/lib/model-result.js';
 import type { Tool as SdkTool } from '@openrouter/sdk/lib/tool-types.js';
 import type { ResponseFormat } from '@openrouter/sdk/models/chatrequest.js';
-import { callOpenAICompatModel } from '../llm/openai-client.js';
+import { callOpenAICompatModel } from '../llm/openai-model.js';
 
 const MAX_TURNS = 5;
 

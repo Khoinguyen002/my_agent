@@ -108,6 +108,7 @@ export async function startApiServer(): Promise<void> {
         try {
           const result = await jobQueue.add(() =>
             processFile(entry, folderId, (delta) => {
+              logger.info('API price-list: model delta', { delta });
               sendSse(reply, 'delta', delta);
             }),
           );
@@ -125,7 +126,13 @@ export async function startApiServer(): Promise<void> {
       // Batch: create folder once, all files share it
       const { folderId } = await createDriveFolder(newBatchId());
       const results = await Promise.all(
-        entries.map((entry) => jobQueue.add(() => processFile(entry, folderId))),
+        entries.map((entry) =>
+          jobQueue.add(() =>
+            processFile(entry, folderId, (delta) => {
+              logger.info('API price-list: model delta', { delta });
+            }),
+          ),
+        ),
       );
 
       return reply.code(200).send(results);

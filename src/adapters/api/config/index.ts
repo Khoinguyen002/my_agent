@@ -17,7 +17,7 @@ CRITICAL RULES TO PREVENT OVERTHINKING:
 - "unit_price": The second number - Float.
 - "total": The number after the '=' sign.
 
-**ADD "note" column: Leave it empty "" ONLY if you had ZERO hesitation on every character and number of this row.
+**ADD "note" column: Mark "✔" ONLY if you had ZERO hesitation on every character and number of this row.
 
 **Also extract:
 - "grand_total": The final summed number below the last row, or null if absent.
@@ -26,52 +26,51 @@ CRITICAL RULES TO PREVENT OVERTHINKING:
 export const INVOICES_TRANSCRIPTION_SYSTEM_PROMPT = `
 You are a STRICT, LITERAL OCR TRANSCRIBER. 
 Your ONLY job is to extract exact visual characters from the handwritten price list into JSON.
-MAXIMUM 4096 tokens. PLEASE CONCISE.
 NO SEMANTIC INTERPRETATION: Do NOT try to understand what the words mean. Do NOT correct spelling. Do NOT guess real-world product names.
 `;
 
 export const PRICE_LIST_RESPONSE_FORMAT: ResponseFormat = {
-  type: 'json_schema',
-  jsonSchema: {
-    name: 'price_list_result',
-    description: 'Extracted price list items from the image',
-    schema: {
-      type: 'object',
-      properties: {
-        items: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              item: {
-                type: 'string',
-                description: 'Literal transcription of the product name as it appears in the image',
-              },
-              quantity: { type: ['number', 'null'], description: 'The quantity of the item' },
-              unit_price: {
-                type: ['number', 'null'],
-                description: 'The price per unit of the item',
-              },
-              total: { type: ['number', 'null'], description: 'The total price for the item' },
-              note: {
-                type: 'string',
-                description:
-                  'Leave it empty "tao bit roi" ONLY if you had ZERO hesitation on every character and number of this row',
-              },
-            },
-            required: ['item', 'quantity', 'unit_price', 'total', 'note'],
-          },
-        },
-        grand_total: { type: ['number', 'null'] },
-        summary_note: {
-          type: 'string',
-          description:
-            'Any other text on the page (discounts, memos), or the fallback description if rule 1 applies.',
-        },
-      },
-      required: ['items', 'grand_total', 'summary_note'],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
+  type: 'json_object',
+  // jsonSchema: {
+  //   name: 'price_list_result',
+  //   description: 'Extracted price list items from the image',
+  //   schema: {
+  //     type: 'object',
+  //     properties: {
+  //       items: {
+  //         type: 'array',
+  //         items: {
+  //           type: 'object',
+  //           properties: {
+  //             item: {
+  //               type: 'string',
+  //               description: 'Literal transcription of the product name as it appears in the image',
+  //             },
+  //             quantity: { type: ['number', 'null'], description: 'The quantity of the item' },
+  //             unit_price: {
+  //               type: ['number', 'null'],
+  //               description: 'The price per unit of the item',
+  //             },
+  //             total: { type: ['number', 'null'], description: 'The total price for the item' },
+  //             note: {
+  //               type: 'string',
+  //               description:
+  //                 'Mark "pass" ONLY if you had ZERO hesitation on every character and number of this row',
+  //             },
+  //           },
+  //           required: ['item', 'quantity', 'unit_price', 'total', 'note'],
+  //         },
+  //       },
+  //       grand_total: { type: ['number', 'null'] },
+  //       summary_note: {
+  //         type: 'string',
+  //         description:
+  //           'Any other text on the page (discounts, memos), or the fallback description if rule 1 applies.',
+  //       },
+  //     },
+  //     required: ['items', 'grand_total', 'summary_note'],
+  //     additionalProperties: false,
+  //   },
+  //   strict: true,
+  // },
 };
