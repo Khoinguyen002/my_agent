@@ -1,56 +1,69 @@
-import { callModel, type DbMessage, wrapTool } from "../llm/model.js";
-import { toolRegistry, type Tool } from "../tools/registry.js";
-import { appendMessage } from "../db/conversations.js";
-import type { AgentInput, StreamDelta, ToolContext } from "../types/index.js";
-import { logger } from "../utils/logger.js";
-import type { TurnContext } from "@openrouter/sdk/lib/tool-types.js";
-import type { OpenResponsesResult } from "@openrouter/sdk/models/openresponsesresult.js";
+import { callModel } from '../llm/model.js';
+import { wrapTool } from '../llm/wrapTool.js';
+import type { DbMessage } from '../types/index.js';
+import { toolRegistry, type Tool } from '../tools/registry.js';
+import { appendMessage } from '../db/conversations.js';
+import type { AgentInput, StreamDelta, ToolContext } from '../types/index.js';
+import { logger } from '../utils/logger.js';
+import type { TurnContext } from '@openrouter/sdk/lib/tool-types.js';
+import type { OpenResponsesResult } from '@openrouter/sdk/models/openresponsesresult.js';
+import type { ChatStreamChunk } from '@openrouter/sdk/models/chatstreamchunk.js';
+import type { EventStream } from '@openrouter/sdk/lib/event-streams.js';
+import type { ModelResult } from '@openrouter/sdk/lib/model-result.js';
+import type { Tool as SdkTool } from '@openrouter/sdk/lib/tool-types.js';
+import type { ResponseFormat } from '@openrouter/sdk/models/chatrequest.js';
+import { callOpenAICompatModel } from '../llm/openai-client.js';
 
 const MAX_TURNS = 5;
 
-const SYSTEM_PROMPT = `You are a helpful AI agent. You have access to various tools to help users accomplish tasks.
-When using tools, be transparent about what you're doing and why. Always provide clear, concise responses.`;
+function isResponsesModelResult(
+  result: ModelResult<readonly SdkTool[]> | EventStream<ChatStreamChunk>,
+): result is ModelResult<readonly SdkTool[]> {
+  return typeof (result as ModelResult<readonly SdkTool[]>).getFullResponsesStream === 'function';
+}
 
 type RunOptions = {
   history?: DbMessage[];
   extraTools?: Tool[];
   onDelta?: (delta: StreamDelta) => void;
-  systemPrompt?: string;
   maxTurns?: number;
   sdkContext?: Record<string, Record<string, unknown>>;
+  responseFormat?: ResponseFormat;
+  noTools?: boolean;
+  temperature?: number;
 };
 export class AgentCore {
-  async run(
-    input: AgentInput,
-    context: ToolContext,
-    options: RunOptions = {},
-  ): Promise<string> {
+  async run(input: AgentInput, context: ToolContext, options: RunOptions = {}): Promise<string> {
     const {
       history = [],
       extraTools = [],
       onDelta,
-      systemPrompt = SYSTEM_PROMPT,
       maxTurns = MAX_TURNS,
       sdkContext,
+      responseFormat,
+      temperature,
+      noTools,
     } = options;
 
     const { conversationId } = context;
     const toolDefs = [...toolRegistry.getAll(), ...extraTools];
-    const sdkTools = toolDefs.map((def) =>
-      wrapTool(def, context, onDelta, conversationId),
-    );
+    const sdkTools = noTools
+      ? []
+      : toolDefs.map((def) => wrapTool(def, context, onDelta, conversationId));
 
-    logger.debug("Agent run", {
+    logger.debug('Agent run', {
       conversationId,
       historyItems: history.length,
     });
 
-    const modelResult = await callModel(input, history, sdkTools, systemPrompt, {
+    const modelResult = await callOpenAICompatModel(input, sdkTools, {
+      temperature,
+      responseFormat,
       maxTurns,
       sdkContext,
       onTurnEnd: async (_ctx: TurnContext, response: OpenResponsesResult) => {
         // Save assistant turns that include tool calls to DB
-        let assistantText = "";
+        let assistantText = '';
         const toolCalls: Array<{
           callId: string;
           toolName: string;
@@ -58,11 +71,11 @@ export class AgentCore {
         }> = [];
 
         for (const item of response.output) {
-          if (item.type === "message") {
+          if (item.type === 'message') {
             for (const c of item.content) {
-              if ("text" in c) assistantText += c.text;
+              if ('text' in c) assistantText += c.text;
             }
-          } else if (item.type === "function_call") {
+          } else if (item.type === 'function_call') {
             toolCalls.push({
               callId: item.callId,
               toolName: item.name,
@@ -73,65 +86,75 @@ export class AgentCore {
 
         if (toolCalls.length > 0) {
           onDelta?.({
-            type: "router_decision",
+            type: 'router_decision',
             toolNames: toolCalls.map((tc) => tc.toolName),
           });
-          appendMessage({
-            conversationId,
-            role: "assistant",
-            content: assistantText,
-            toolCallsJson: JSON.stringify(toolCalls),
-          });
+          conversationId &&
+            appendMessage({
+              conversationId,
+              role: 'assistant',
+              content: assistantText,
+              toolCallsJson: JSON.stringify(toolCalls),
+            });
         }
       },
     });
 
-    if (modelResult.kind === "chat") {
-      const content = modelResult.content;
-      if (content) onDelta?.({ type: "content", text: content });
-      onDelta?.({ type: "done" });
-      appendMessage({
-        conversationId,
-        role: "assistant",
-        content: content,
-      });
-      return content;
-    }
-
-    let finalContent = "";
-    let finalReasoning = "";
+    let finalContent = '';
+    let finalReasoning = '';
 
     try {
-      for await (const event of modelResult.result.getFullResponsesStream()) {
-        if (event.type === "response.output_text.delta") {
-          finalContent += event.delta;
-          onDelta?.({ type: "content", text: event.delta });
-        } else if (
-          event.type === "response.reasoning_text.delta" ||
-          event.type === "response.reasoning_summary_text.delta"
-        ) {
-          finalReasoning += event.delta;
-          // Only display reasoning before content starts to avoid interleaved flickering
-          if (!finalContent) {
-            onDelta?.({ type: "reasoning", text: event.delta });
+      if (isResponsesModelResult(modelResult.result)) {
+        for await (const event of modelResult.result.getFullResponsesStream()) {
+          if (event.type === 'response.output_text.delta') {
+            finalContent += event.delta;
+            onDelta?.({ type: 'content', text: event.delta });
+          } else if (
+            event.type === 'response.reasoning_text.delta' ||
+            event.type === 'response.reasoning_summary_text.delta'
+          ) {
+            finalReasoning += event.delta;
+            // Only display reasoning before content starts to avoid interleaved flickering
+            if (!finalContent) {
+              onDelta?.({ type: 'reasoning', text: event.delta });
+            }
+          }
+        }
+      } else {
+        for await (const chunk of modelResult.result) {
+          const choice = chunk.choices[0];
+          const delta = choice?.delta;
+          if (!delta) continue;
+
+          if (delta.content) {
+            finalContent += delta.content;
+            onDelta?.({ type: 'content', text: delta.content });
+          }
+
+          if (delta.reasoning) {
+            finalReasoning += delta.reasoning;
+            if (!finalContent) {
+              onDelta?.({ type: 'reasoning', text: delta.reasoning });
+            }
           }
         }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      logger.error("Model call failed", { error: msg });
+      logger.error('Model call failed', { error: msg });
       finalContent = `Error: ${msg}`;
-      onDelta?.({ type: "content", text: finalContent });
+      onDelta?.({ type: 'content', text: finalContent });
     }
 
-    onDelta?.({ type: "done" });
+    onDelta?.({ type: 'done' });
 
-    appendMessage({
-      conversationId,
-      role: "assistant",
-      content: finalContent,
-      reasoningContent: finalReasoning || undefined,
-    });
+    conversationId &&
+      appendMessage({
+        conversationId,
+        role: 'assistant',
+        content: finalContent,
+        reasoningContent: finalReasoning || undefined,
+      });
 
     return finalContent;
   }

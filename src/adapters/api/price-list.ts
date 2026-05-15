@@ -1,69 +1,34 @@
 import { agentCore } from '../../agent/core.js';
-import type { StreamDelta } from '../../types/index.js';
-import type { AgentContentPart, AgentInput } from '../../types/index.js';
 import { env } from '../../config/env.js';
+import type { AgentInput, StreamDelta } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
+import {
+  PRICE_LIST_RESPONSE_FORMAT,
+  INVOICES_TRANSCRIPTION_USER_PROMPT,
+  INVOICES_TRANSCRIPTION_SYSTEM_PROMPT,
+} from './config/index.js';
 
 export type PriceListItem = {
-  product: string;
+  item: string;
   quantity: number | null;
-  price: number | null;
+  unit_price: number | null;
   total: number | null;
-  note: string | null;
+  note: string;
 };
 
 export type PriceListResult = {
   items: PriceListItem[];
+  grand_total: number | null;
+  summary_note: string;
 };
 
-const SYSTEM_PROMPT = `Extract all line items from this handwritten price list image into JSON.
-
-For each row, extract:
-- "item": product name — write your best guess as-is, do NOT overthink it
-- "quantity": first number
-- "unit_price": second number
-- "total": the result after "="
-- "note": leave empty string "" if confident; otherwise briefly flag the issue
-  (e.g. "item name unclear", "quantity unreadable", "total may be 1015 or 1075")
-
-Also extract:
-- "grand_total": the final summed number below the line
-- "summary_note": any other text on the page (e.g. discounts, memos)
-
-Return ONLY valid JSON:
-{
-  "items": [
-    {
-      "item": "string",
-      "quantity": number | null,
-      "unit_price": number | null,
-      "total": number | null,
-      "note": "string"
-    }
-  ],
-  "grand_total": number | null,
-  "summary_note": "string"
-}
-
-Rules:
-- Product names: take your best guess and move on, do not dwell on them
-- Decimal separator: treat "," as "." (e.g. 17,5 → 17.5)
-- Null only when a number is truly unreadable
-- No extra explanation outside the JSON block
-- Your entire response must fit within 5000 tokens. Be concise.
-`;
-
-function buildUserText(hints: string[]): string {
-  const hintText = hints.length ? hints.join(', ') : '(none)';
-  return `Extract the rows from the image. Product hints: ${hintText}.`;
-}
-
 function buildInput(imageUrl: string, hints: string[]): AgentInput {
-  const parts: AgentContentPart[] = [
-    { type: 'text', text: buildUserText(hints) },
-    { type: 'image_url', url: imageUrl },
-  ];
-  return { parts };
+  // const hintText = hints.length ? `\nKnown products: ${hints.join(', ')}` : '';
+
+  return {
+    userPrompt: { image: { url: imageUrl }, text: INVOICES_TRANSCRIPTION_USER_PROMPT },
+    systemPrompt: INVOICES_TRANSCRIPTION_SYSTEM_PROMPT,
+  };
 }
 
 export async function parsePriceListImage(
@@ -76,13 +41,19 @@ export async function parsePriceListImage(
   const input = buildInput(imageUrl, hints);
   const content = await agentCore.run(
     input,
-    { conversationId: 'price-list', requestApproval: async () => false },
-    { systemPrompt: SYSTEM_PROMPT, maxTurns: 1, onDelta },
+    { requestApproval: async () => false },
+    {
+      maxTurns: 1,
+      onDelta,
+      responseFormat: PRICE_LIST_RESPONSE_FORMAT,
+      noTools: true,
+      temperature: 0,
+    },
   );
 
   logger.info('Price-list parse: model output', { length: content.length });
 
-  if (!content) return { items: [] };
+  if (!content) return { items: [], grand_total: null, summary_note: '' };
 
   try {
     const parsed = JSON.parse(content) as PriceListResult;
@@ -92,13 +63,15 @@ export async function parsePriceListImage(
     return {
       items: [
         {
-          product: '',
+          item: '',
           quantity: null,
-          price: null,
+          unit_price: null,
           total: null,
-          note: `Invalid JSON from model: ${String(err)}`,
+          note: `Parse error: ${String(err)}`,
         },
       ],
+      grand_total: null,
+      summary_note: '',
     };
   }
 }

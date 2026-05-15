@@ -74,20 +74,25 @@ export function registerHandlers(bot: Bot): void {
       const title = inputText.slice(0, 60) + (inputText.length > 60 ? '...' : '');
       updateConversationTitle(conversationId, title);
     }
-    const history = truncateMessages(dbMessages, HISTORY_LIMIT);
-
-    const parts: AgentInput['parts'] = [];
-    if (caption.trim()) {
-      parts.push({ type: 'text', text: caption });
-    }
-    parts.push({
-      type: 'image_url',
-      url: await getTelegramFileUrl(bot, bestPhoto.file_id),
-    });
-    const input: AgentInput = { parts };
 
     try {
-      const response = await agentCore.run(input, { conversationId, requestApproval }, { history });
+      const response = await agentCore.run(
+        {
+          userPrompt: {
+            image: {
+              url: await getTelegramFileUrl(bot, bestPhoto.file_id),
+              caption: caption.trim(),
+            },
+          },
+        },
+        { conversationId, requestApproval },
+        {
+          onDelta(delta) {
+            logger.info(JSON.stringify(delta));
+          },
+          temperature: 0.3,
+        },
+      );
       if (response.trim()) {
         await ctx.reply(response, { parse_mode: 'Markdown' }).catch(
           () => ctx.reply(response), // fallback without markdown if parse fails
@@ -135,7 +140,7 @@ export function registerHandlers(bot: Bot): void {
       updateConversationTitle(conversationId, title);
     }
     const history = truncateMessages(dbMessages, HISTORY_LIMIT);
-    const input: AgentInput = { parts: [{ type: 'text', text }] };
+    const input: AgentInput = { userPrompt: { text } };
 
     try {
       const response = await agentCore.run(input, { conversationId, requestApproval }, { history });

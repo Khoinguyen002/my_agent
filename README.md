@@ -80,6 +80,12 @@ import { myTool } from './my-tool.js';
 toolRegistry.register(myTool);
 ```
 
+## API Server
+
+Set `API_PORT=3000` in `.env` to enable the HTTP API for price-list image OCR.
+
+See **[docs/api.md](docs/api.md)** for full integration guide: endpoint reference, SSE streaming, batch uploads, Drive folder structure, and code examples in JavaScript and Python.
+
 ## Architecture
 
 ```

@@ -1,17 +1,19 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { env } from '../../config/env.js';
 import { parsePriceListImage } from './price-list.js';
 import { logger } from '../../utils/logger.js';
-import { uploadToDrive } from './drive.js';
+import { createDriveFolder, uploadToDrive } from './drive.js';
+import { enhanceImage } from './enhance.js';
+import { jobQueue } from './queue.js';
 
-function buildFilename(originalName?: string): string {
-  const base = `price-list-${Date.now()}`;
-  if (!originalName) return base;
-  const dot = originalName.lastIndexOf('.');
-  if (dot === -1 || dot === 0 || dot === originalName.length - 1) return base;
-  return `${base}${originalName.slice(dot)}`;
+function newBatchId(): string {
+  const now = new Date();
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `price-list-${stamp}`;
 }
 
 function wantsSse(request: FastifyRequest): boolean {
@@ -31,6 +33,11 @@ function sendSse(reply: FastifyReply, event: string, data: unknown): void {
 }
 
 function startSse(reply: FastifyReply): void {
+  // Copy headers already set by Fastify hooks (e.g. @fastify/cors) onto the raw
+  // response before hijacking — hijack() bypasses onSend so they'd be lost otherwise.
+  for (const [key, value] of Object.entries(reply.getHeaders())) {
+    if (value !== undefined) reply.raw.setHeader(key, value as string | string[]);
+  }
   reply.hijack();
   reply.raw.statusCode = 200;
   reply.raw.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -40,87 +47,94 @@ function startSse(reply: FastifyReply): void {
   reply.raw.flushHeaders?.();
 }
 
+type FileEntry = { raw: Buffer; originalName: string; mimetype: string };
+
+async function processFile(entry: FileEntry, folderId: string, onDelta?: (delta: unknown) => void) {
+  const filename = entry.originalName;
+
+  const { buffer, mimeType: mime } = await enhanceImage(entry.raw);
+
+  logger.info('API price-list: uploading to Drive', { filename, folderId });
+  const upload = await uploadToDrive(buffer, mime, filename, folderId);
+  logger.info('API price-list: upload complete', { fileId: upload.fileId, url: upload.url });
+
+  logger.info('API price-list: calling model');
+  const result = await parsePriceListImage(upload.url, env.productHints, onDelta);
+  logger.info('API price-list: model response', { items: result.items.length });
+
+  return { ...result, driveUrl: upload.url, driveFolderUrl: upload.folderUrl, filename };
+}
+
 export async function startApiServer(): Promise<void> {
   const fastify = Fastify({ logger: false });
 
+  if (env.corsOrigins.length > 0) {
+    await fastify.register(cors, { origin: env.corsOrigins });
+  }
+
   await fastify.register(multipart, {
     limits: {
-      fileSize: 8 * 1024 * 1024,
+      fileSize: 20 * 1024 * 1024,
+      files: 50,
     },
   });
 
   fastify.post('/api/price-list', async (request, reply) => {
-    const useSse = wantsSse(request);
+    try {
+      // Collect all uploaded files first
+      const entries: FileEntry[] = [];
+      for await (const part of request.files()) {
+        const raw = await part.toBuffer();
+        entries.push({ raw, originalName: part.filename, mimetype: part.mimetype });
+      }
 
-    if (useSse) {
-      startSse(reply);
-      sendSse(reply, 'start', { message: 'Uploading file' });
-    }
+      if (entries.length === 0) {
+        return reply.code(400).send({ error: 'Missing file' });
+      }
 
-    const file = await request.file();
-    if (!file) {
+      logger.info('API price-list: received files', { count: entries.length });
+
+      // SSE is only supported for single-file requests
+      const useSse = wantsSse(request) && entries.length === 1;
+
       if (useSse) {
-        sendSse(reply, 'error', { error: 'Missing file' });
+        const entry = entries[0];
+        startSse(reply);
+        sendSse(reply, 'start', { message: 'Uploading file' });
+        sendSse(reply, 'received', { filename: entry.originalName, mimetype: entry.mimetype });
+        sendSse(reply, 'enhancing', { message: 'Enhancing image' });
+
+        const { folderId, folderUrl } = await createDriveFolder(newBatchId());
+        try {
+          const result = await jobQueue.add(() =>
+            processFile(entry, folderId, (delta) => {
+              sendSse(reply, 'delta', delta);
+            }),
+          );
+          sendSse(reply, 'uploaded', { fileId: '', url: result.driveUrl, folderUrl });
+          sendSse(reply, 'result', result);
+          sendSse(reply, 'done', { ok: true });
+        } catch (err) {
+          sendSse(reply, 'error', { error: String(err) });
+        }
+
         reply.raw.end();
         return;
       }
-      return reply.code(400).send({ error: 'Missing file' });
+
+      // Batch: create folder once, all files share it
+      const { folderId } = await createDriveFolder(newBatchId());
+      const results = await Promise.all(
+        entries.map((entry) => jobQueue.add(() => processFile(entry, folderId))),
+      );
+
+      return reply.code(200).send(results);
+    } catch (error) {
+      logger.error('price-list handler error', { error });
+      if (!reply.sent) {
+        reply.code(500).send({ error: String(error) });
+      }
     }
-
-    logger.info('API price-list: received file', {
-      filename: file.filename,
-      mimetype: file.mimetype,
-    });
-
-    if (useSse) {
-      sendSse(reply, 'received', {
-        filename: file.filename,
-        mimetype: file.mimetype,
-      });
-    }
-
-    const buffer = await file.toBuffer();
-    const mime = file.mimetype || 'application/octet-stream';
-    const filename = buildFilename(file.filename);
-
-    logger.info('API price-list: uploading to Drive', { filename });
-    if (useSse) {
-      sendSse(reply, 'uploading', { filename });
-    }
-    const upload = await uploadToDrive(buffer, mime, filename);
-    logger.info('API price-list: upload complete', {
-      fileId: upload.fileId,
-      url: upload.url,
-    });
-
-    if (useSse) {
-      sendSse(reply, 'uploaded', {
-        fileId: upload.fileId,
-        url: upload.url,
-      });
-      sendSse(reply, 'model', { message: 'Calling model' });
-    }
-
-    logger.info('API price-list: calling model');
-    const result = await parsePriceListImage(
-      upload.url,
-      env.productHints,
-      useSse ? (delta) => sendSse(reply, 'delta', delta) : undefined,
-    );
-    logger.info('API price-list: model response', {
-      items: result.items.length,
-    });
-
-    const payload = { ...result, driveUrl: upload.url };
-
-    if (useSse) {
-      sendSse(reply, 'result', payload);
-      sendSse(reply, 'done', { ok: true });
-      reply.raw.end();
-      return;
-    }
-
-    return reply.code(200).send(payload);
   });
 
   const port = env.apiPort;

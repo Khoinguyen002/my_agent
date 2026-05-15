@@ -1,42 +1,36 @@
-import readline from "readline";
-import { runCliOnboarding, getOrNullProfile } from "../../agent/onboarding.js";
-import { agentCore } from "../../agent/core.js";
-import { AgentSession } from "../../agent/session.js";
-import { TerminalRenderer } from "./renderer.js";
-import { handleCommand } from "./commands.js";
-import type { CronManager } from "../../cron/manager.js";
-import type { AgentInput, ToolContext } from "../../types/index.js";
-import {
-  appendMessage,
-  getMessages,
-  updateConversationTitle,
-} from "../../db/conversations.js";
-import { truncateMessages } from "../../utils/history.js";
+import readline from 'readline';
+import { runCliOnboarding, getOrNullProfile } from '../../agent/onboarding.js';
+import { agentCore } from '../../agent/core.js';
+import { AgentSession } from '../../agent/session.js';
+import { TerminalRenderer } from './renderer.js';
+import { handleCommand } from './commands.js';
+import type { CronManager } from '../../cron/manager.js';
+import type { AgentInput, ToolContext } from '../../types/index.js';
+import { appendMessage, getMessages, updateConversationTitle } from '../../db/conversations.js';
+import { truncateMessages } from '../../utils/history.js';
 
 const HISTORY_LIMIT = 20;
 
 export async function startRepl(cronManager: CronManager): Promise<void> {
   // Onboarding already ran in index.ts; just fetch the saved profile
-  const profile = getOrNullProfile("cli", "cli") ?? (await runCliOnboarding());
+  const profile = getOrNullProfile('cli', 'cli') ?? (await runCliOnboarding());
   const session = new AgentSession();
   const renderer = new TerminalRenderer();
 
-  console.log(
-    `\nHello, ${profile.name}! Type a message or /help for commands.\n`,
-  );
+  console.log(`\nHello, ${profile.name}! Type a message or /help for commands.\n`);
 
-  let conversationId = session.newConversation("cli");
+  let conversationId = session.newConversation('cli');
 
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: "\x1b[1m> \x1b[0m",
+    prompt: '\x1b[1m> \x1b[0m',
     terminal: true,
   });
 
   rl.prompt();
 
-  rl.on("line", async (line) => {
+  rl.on('line', async (line) => {
     const trimmed = line.trim();
     if (!trimmed) {
       rl.prompt();
@@ -50,7 +44,7 @@ export async function startRepl(cronManager: CronManager): Promise<void> {
         trimmed,
         conversationId,
         () => {
-          conversationId = session.newConversation("cli");
+          conversationId = session.newConversation('cli');
           return conversationId;
         },
         cronManager,
@@ -60,7 +54,7 @@ export async function startRepl(cronManager: CronManager): Promise<void> {
       );
 
       if (result.exit) {
-        console.log("\nGoodbye!\n");
+        console.log('\nGoodbye!\n');
         rl.close();
         process.exit(0);
       }
@@ -85,24 +79,23 @@ export async function startRepl(cronManager: CronManager): Promise<void> {
               `\n\x1b[33m[Permission needed]\x1b[0m ${description}\nAllow? (y/n): `,
               (answer) => {
                 approvalRl.close();
-                resolve(answer.toLowerCase().startsWith("y"));
+                resolve(answer.toLowerCase().startsWith('y'));
               },
             );
           });
         },
       };
 
-      process.stdout.write("\n");
+      process.stdout.write('\n');
 
-      appendMessage({ conversationId, role: "user", content: trimmed });
+      appendMessage({ conversationId, role: 'user', content: trimmed });
       const dbMessages = getMessages(conversationId);
-      if (dbMessages.filter((m) => m.role === "user").length === 1) {
-        const title =
-          trimmed.slice(0, 60) + (trimmed.length > 60 ? "..." : "");
+      if (dbMessages.filter((m) => m.role === 'user').length === 1) {
+        const title = trimmed.slice(0, 60) + (trimmed.length > 60 ? '...' : '');
         updateConversationTitle(conversationId, title);
       }
       const history = truncateMessages(dbMessages, HISTORY_LIMIT);
-      const input: AgentInput = { parts: [{ type: "text", text: trimmed }] };
+      const input: AgentInput = { userPrompt: { text: trimmed } };
 
       await agentCore.run(input, context, {
         history,
@@ -117,8 +110,8 @@ export async function startRepl(cronManager: CronManager): Promise<void> {
     rl.prompt();
   });
 
-  rl.on("close", () => {
-    console.log("\nGoodbye!\n");
+  rl.on('close', () => {
+    console.log('\nGoodbye!\n');
     process.exit(0);
   });
 }

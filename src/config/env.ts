@@ -22,9 +22,10 @@ function toNumber(val: string): number {
 
 export const env = {
   openrouterApiKey: require('OPENROUTER_API_KEY'),
+  openrouterServerUrl: optional('OPENROUTER_SERVER_URL', 'https://openrouter.ai/api/v1'),
   model: require('MODEL'),
   // Optional: "deepinfra/bf16" → { order: ["DeepInfra"], quantizations: ["bf16"] }
-  provider: process.env['PROVIDER'],
+  providers: process.env['PROVIDERS'],
   // Set to "1" to enable OpenRouter context-compression plugin (requires provider support)
   contextCompression: process.env['CONTEXT_COMPRESSION'] === '1',
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'],
@@ -43,4 +44,13 @@ export const env = {
   driveFolderId: optional('DRIVE_FOLDER_ID', ''),
   // Set to "0" to skip making files public
   drivePublic: optional('DRIVE_PUBLIC', '1') === '1',
+  // OpenAI-compatible provider (e.g. Xiaomi MiMo). When set, all model calls use this client.
+  openaiCompatApiKey: optional('OPENAI_COMPAT_API_KEY', ''),
+  openaiCompatBaseUrl: optional('OPENAI_COMPAT_BASE_URL', ''),
+  openaiCompatModel: optional('OPENAI_COMPAT_MODEL', ''),
+  // Comma-separated allowed CORS origins, e.g. "https://app.example.com,http://localhost:5173"
+  corsOrigins: optional('CORS_ORIGINS', '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean),
 } as const;

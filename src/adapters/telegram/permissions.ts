@@ -25,7 +25,7 @@ export function registerApprovalListener(bot: Bot): void {
 
 export function createApprovalRequester(
   chatId: number,
-  sendMessage: (text: string) => Promise<void>
+  sendMessage: (text: string) => Promise<void>,
 ): (description: string) => Promise<boolean> {
   return (description: string) => {
     return new Promise<boolean>((resolve) => {
@@ -41,7 +41,7 @@ export function createApprovalRequester(
       });
 
       void sendMessage(
-        `⚠️ Permission needed:\n${description}\n\nReply \`yes\` to allow or \`no\` to deny.`
+        `⚠️ Permission needed:\n${description}\n\nReply \`yes\` to allow or \`no\` to deny.`,
       );
     });
   };
