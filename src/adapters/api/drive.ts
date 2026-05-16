@@ -44,6 +44,69 @@ export async function createDriveFolder(name: string): Promise<{ folderId: strin
   return { folderId, folderUrl: `https://drive.google.com/drive/folders/${folderId}` };
 }
 
+const SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
+
+/** Find a Google Sheet by exact name inside a folder. Returns the spreadsheet ID or null. */
+async function findSheet(name: string, folderId: string): Promise<string | null> {
+  const auth = loadOAuthClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const q = `name='${name}' and '${folderId}' in parents and mimeType='${SHEET_MIME}' and trashed=false`;
+  const res = await drive.files.list({ q, fields: 'files(id)', pageSize: 1 });
+  return res.data.files?.[0]?.id ?? null;
+}
+
+/** Create a Google Sheet in a folder. Returns the spreadsheet ID. */
+async function createSheet(name: string, folderId: string): Promise<string> {
+  const auth = loadOAuthClient();
+  const sheets = google.sheets({ version: 'v4', auth });
+  const drive = google.drive({ version: 'v3', auth });
+
+  const res = await sheets.spreadsheets.create({
+    requestBody: { properties: { title: name } },
+    fields: 'spreadsheetId',
+  });
+  const sheetId = res.data.spreadsheetId!;
+
+  const file = await drive.files.get({ fileId: sheetId, fields: 'parents' });
+  const prevParents = file.data.parents?.join(',') ?? '';
+  await drive.files.update({
+    fileId: sheetId,
+    addParents: folderId,
+    removeParents: prevParents,
+    fields: 'id, parents',
+  });
+
+  logger.info('Drive: sheet created', { name, sheetId, folderId });
+  return sheetId;
+}
+
+/** Find or create a Google Sheet by name in a folder. */
+export async function findOrCreateSheet(name: string, folderId: string): Promise<string> {
+  return (await findSheet(name, folderId)) ?? (await createSheet(name, folderId));
+}
+
+/** Read all cell values from a Google Sheet. */
+export async function readSheetValues(sheetId: string): Promise<string[][]> {
+  const auth = loadOAuthClient();
+  const sheets = google.sheets({ version: 'v4', auth });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: 'A:Z' });
+  return (res.data.values as string[][] | null) ?? [];
+}
+
+/** Overwrite all cell values in a Google Sheet. */
+export async function writeSheetValues(sheetId: string, values: string[][]): Promise<void> {
+  const auth = loadOAuthClient();
+  const sheets = google.sheets({ version: 'v4', auth });
+  await sheets.spreadsheets.values.clear({ spreadsheetId: sheetId, range: 'A:Z' });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: sheetId,
+    range: 'A1',
+    valueInputOption: 'RAW',
+    requestBody: { values },
+  });
+  logger.info('Drive: sheet updated', { sheetId, rows: values.length });
+}
+
 /** Upload a file into an existing folder by ID. */
 export async function uploadToDrive(
   buffer: Buffer,

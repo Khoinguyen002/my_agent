@@ -8,6 +8,11 @@ CRITICAL RULES TO PREVENT OVERTHINKING:
 1. EARLY EXIT: If the image does not contain rows following the pattern [item | quantity | unit_price = total] (e.g., it is a general photo, standard receipt, or blank page), STOP IMMEDIATELY and return: { "items": [], "grand_total": null, "summary_note": "<brief description of the image>" }.
 2. NO SEMANTIC INTERPRETATION: Do NOT try to understand what words mean or correct spelling. Transcribe literal visual shapes (e.g., if it visually looks like '18 o tay', write '18 o tay', do NOT deduce it means 'Cá Tra').
 3. NO SECOND-GUESSING: Trust your first visual impression. Do not debate. Read letters as shapes, output the closest characters, and move on.
+3a. NEVER MODIFY NUMBERS: The "quantity", "unit_price", and "total" fields must be the EXACT digits written in the image — no rounding, no recalculating, no "correcting".
+    EXAMPLE:
+    ❌ FORBIDDEN: seeing "752" written in the image but outputting 752.5 because 43 × 17.5 = 752.5.
+    ✅ CORRECT: output "total": 752 and flag the discrepancy in the note.
+    Vietnamese prices use comma as decimal separator (17,5 = 17.5) — parse the number, but do NOT use it to adjust any other field.
 4. ISOLATE ROWS: Ignore floating numbers/text (like '10-5') that do not belong to the standard calculation pattern.
 5. CONCISENESS: Output must fit within ${env.maxOutputTokens} tokens. Keep strings exact and brief.
 
@@ -19,7 +24,7 @@ Return a JSON object with the following structure:
       "item": "Literal transcription of the characters seen",
       "quantity": <first number>,
       "unit_price": <second number>,
-      "total": <number after '=' sign>,
+      "total": <exact number written after '=' sign — NEVER recalculate or adjust this>,
       "note": "[Math Status] | [OCR Status]"
     }
   ],
@@ -28,6 +33,7 @@ Return a JSON object with the following structure:
 }
 
 NOTE FIELD FORMATTING GUIDELINES:
+⚠️ BEFORE filling the "note" field for ANY row, you MUST explicitly recalculate quantity × unit_price for EVERY row first. Do this calculation step for all rows before writing any note. Do NOT skip or assume — recalculate each row independently.
 - [Math Status]: Write "Tính: Đúng" if (quantity * unit_price) exactly equals the total. If it does not match, you MUST calculate the correct result and write exactly: "Tính: Sai ❌ - <quantity> x <unit_price> = <correct_result> (nhưng trong hàng lại ghi là <total>)".
 - [OCR Status]: Leave empty string "" if you are 100% certain about every character in the "item" column. If you have ANY hesitation, write "Cần xem lại: <brief visual reason in Vietnamese>" specifying exactly which letters or words are ambiguous. Do NOT guess real-world meanings here, just describe the visual ambiguity in Vietnamese.
 
@@ -38,9 +44,15 @@ Example notes:
 `;
 
 export const INVOICES_TRANSCRIPTION_SYSTEM_PROMPT = `
-You are a STRICT, LITERAL OCR TRANSCRIBER. 
+You are a STRICT, LITERAL OCR TRANSCRIBER.
 Your ONLY job is to extract exact visual characters from the handwritten price list into JSON.
 NO SEMANTIC INTERPRETATION: Do NOT try to understand what the words mean. Do NOT correct spelling. Do NOT guess real-world product names.
+`;
+
+export const VERIFICATION_SYSTEM_PROMPT = `
+You are a STRICT JSON verifier for price-list transcriptions.
+Your job is to verify math and correct product names using provided reference lists.
+Output ONLY valid JSON — no markdown, no explanation.
 `;
 
 export const PRICE_LIST_RESPONSE_FORMAT: ResponseFormat = {

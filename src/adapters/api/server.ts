@@ -59,7 +59,7 @@ async function processFile(entry: FileEntry, folderId: string, onDelta?: (delta:
   logger.info('API price-list: upload complete', { fileId: upload.fileId, url: upload.url });
 
   logger.info('API price-list: calling model');
-  const result = await parsePriceListImage(upload.url, env.productHints, onDelta);
+  const result = await parsePriceListImage(upload.url, onDelta);
   logger.info('API price-list: model response', { items: result.items.length });
 
   return { ...result, driveUrl: upload.url, driveFolderUrl: upload.folderUrl, filename };
@@ -108,7 +108,6 @@ export async function startApiServer(): Promise<void> {
         try {
           const result = await jobQueue.add(() =>
             processFile(entry, folderId, (delta) => {
-              logger.info('API price-list: model delta', { delta });
               sendSse(reply, 'delta', delta);
             }),
           );
@@ -126,13 +125,7 @@ export async function startApiServer(): Promise<void> {
       // Batch: create folder once, all files share it
       const { folderId } = await createDriveFolder(newBatchId());
       const results = await Promise.all(
-        entries.map((entry) =>
-          jobQueue.add(() =>
-            processFile(entry, folderId, (delta) => {
-              logger.info('API price-list: model delta', { delta });
-            }),
-          ),
-        ),
+        entries.map((entry) => jobQueue.add(() => processFile(entry, folderId))),
       );
 
       return reply.code(200).send(results);

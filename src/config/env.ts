@@ -32,10 +32,6 @@ export const env = {
   dataDir: optional('DATA_DIR', './data'),
   apiPort: toNumber(optional('API_PORT', '0')),
   maxOutputTokens: toNumber(optional('MAX_OUTPUT_TOKENS', '4096')),
-  productHints: optional('PRODUCT_HINTS', '')
-    .split(',')
-    .map((name) => name.trim())
-    .filter(Boolean),
   // Google OAuth (user) credentials
   googleOAuthClientId: optional('GOOGLE_OAUTH_CLIENT_ID', ''),
   googleOAuthClientSecret: optional('GOOGLE_OAUTH_CLIENT_SECRET', ''),
