@@ -28,7 +28,9 @@ function createClient(): OpenAI {
 // ---------------------------------------------------------------------------
 
 function buildMessages(input: AgentInput): ChatCompletionMessageParam[] {
-  const msgs: ChatCompletionMessageParam[] = [];
+  const msgs: ChatCompletionMessageParam[] = [
+    { role: 'system', content: 'English is the primary language for all conversations.' },
+  ];
 
   if (input.systemPrompt) {
     msgs.push({ role: 'system', content: input.systemPrompt });
