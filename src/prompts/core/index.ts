@@ -9,13 +9,17 @@ const buildTasks = (tasks: Task[], label = 'TASK'): string => {
             .map((e, j) => `${j + 1}. Input: ${e.input} → Output: ${e.output}`)
             .join('\n    ')
         : '';
+      const rulesText = t.rules?.length
+        ? t.rules.map((r, k) => `  Rule ${k + 1}: ${r.title} — ${r.description}`).join('\n')
+        : '';
       const subTasksText = t.subTasks?.length
-        ? t.subTasks.map((s, k) => `  Step ${k + 1}: ${s}`).join('\n')
+        ? t.subTasks.map((s, k) => `  Subtask ${k + 1}: ${s}`).join('\n')
         : '';
       const notesText = t.notes?.length ? t.notes.map((n, k) => `  ${k + 1}. ${n}`).join('\n') : '';
       return `
 ${label} ${i + 1} — ${t.title}:
 ${t.description}
+${rulesText}
 ${subTasksText}
 ${notesText}
 ${examplesText ? `- Example (Few-shot):\n    ${examplesText}` : ''}`.trim();

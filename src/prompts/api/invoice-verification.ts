@@ -1,5 +1,5 @@
 import { PromptTemplate } from '../core/index.js';
-import { Output, Task } from '../core/type.js';
+import { Output, Rule, Task } from '../core/type.js';
 
 type PriceListResult = { items: unknown[]; grand_total: number | null; summary_note: string };
 type UnknownProduct = { ocr_name: string; correct_name: string };
@@ -32,12 +32,25 @@ export const buildVerificationPrompt = (
     : '(none yet)';
 
   const role = 'Verifying an OCR price-list transcription. Perform ALL tasks below in order';
-
+  const rules: Rule[] = [
+    {
+      title: 'KEEP QUANTITY, UNIT PRICE, TOTAL FIELDS UNCHANGED',
+      description:
+        'NEVER MODIFY NUMBERS. Do NOT change any of these fields, just verify and mention discrepancies in the note if any.',
+    },
+  ];
   const tasks: Task[] = [
     {
-      title: 'VERIFY MATH (do this for every row before anything else)',
+      title: 'VERIFY MATH',
+      rules: [
+        {
+          title: 'KEEP QUANTITY, UNIT PRICE, TOTAL FIELDS UNCHANGED',
+          description:
+            'NEVER MODIFY NUMBERS. The "quantity", "unit_price", and "total" fields must be the EXACT digits written in the INPUT JSON — no rounding, no recalculating, no "correcting". Recalculate quantity × unit_price independently for each item and check if it matches the total. If it does not match, record the correct calculation in the note but do NOT change the total field.',
+        },
+      ],
       description:
-        'NEVER MODIFY NUMBERS. The "quantity", "unit_price", and "total" fields must be the EXACT digits written in the INPUT JSON — no rounding, no recalculating, no "correcting". Recalculate quantity × unit_price independently for each item and check if it matches the total. If it does not match, record the correct calculation in the note but do NOT change the total field.',
+        'Verify the mathematical accuracy of each row before proceeding with other tasks.',
     },
     {
       title: 'VERIFY AND CORRECT PRODUCT NAMES',
@@ -53,11 +66,18 @@ export const buildVerificationPrompt = (
     },
     {
       title: 'VERIFY GRAND TOTAL',
+      rules: [
+        {
+          title: 'KEEP QUANTITY, UNIT PRICE, TOTAL FIELDS UNCHANGED',
+          description:
+            'NEVER MODIFY NUMBERS. Do NOT change any of these fields, just verify and mention discrepancies in the note if any.',
+        },
+      ],
       description:
         'Use Vietnamese. Do both steps below and write a free-form note in "summary_note" — no strict format required, just be clear and accurate, add flag icon according to the result.',
       subTasks: [
         'Sum all written "total" values row by row and compare with grand_total.',
-        'Sum all recalculated (qty × price) values. If any row had wrong math in TASK 1, the recalculated sum will differ — mention it.',
+        'Sum all recalculated (qty × price) values independently. If any row had wrong math in TASK 1, the recalculated sum will differ — mention it.',
       ],
     },
     {
@@ -84,5 +104,5 @@ export const buildVerificationPrompt = (
 
   const input = `INPUT JSON to verify:\n${JSON.stringify(result, null, 2)}`;
 
-  return new PromptTemplate({ role, tasks, output, input }).build();
+  return new PromptTemplate({ role, tasks, output, input, rules }).build();
 };

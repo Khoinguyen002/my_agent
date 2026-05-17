@@ -5,6 +5,7 @@ export type Task = {
   description: string;
   subTasks?: string[];
   notes?: string[];
+  rules?: Rule[];
   fewShotExamples?: FewShotExample[];
 };
 export type Output = { type: 'text'; format: string } | { type: 'json'; jsonSchema: object };
