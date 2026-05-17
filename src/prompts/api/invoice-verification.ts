@@ -54,11 +54,10 @@ export const buildVerificationPrompt = (
     {
       title: 'VERIFY GRAND TOTAL',
       description:
-        'Use Vietnamese.Do both steps below and write a free-form note in "summary_note" — no strict format required, just be clear and accurate.',
+        'Use Vietnamese. Do both steps below and write a free-form note in "summary_note" — no strict format required, just be clear and accurate, add flag icon according to the result.',
       subTasks: [
         'Sum all written "total" values row by row and compare with grand_total.',
         'Sum all recalculated (qty × price) values. If any row had wrong math in TASK 1, the recalculated sum will differ — mention it.',
-        'Start "summary_note" with ✅ if both checks pass, ❌ if either fails, ⚠️ if grand_total is null.',
       ],
     },
     {
