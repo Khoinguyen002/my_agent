@@ -1,13 +1,15 @@
 import { agentCore } from '../../agent/core.js';
 import { env } from '../../config/env.js';
+import {
+  buildInvoiceTranscriptionPrompt,
+  buildInvoicesTranscriptionSystemPrompt,
+} from '../../prompts/api/invoice-transcription.js';
+import {
+  buildVerificationPrompt,
+  buildVerificationSystemPrompt,
+} from '../../prompts/api/invoice-verification.js';
 import type { AgentInput, StreamDelta } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
-import {
-  PRICE_LIST_RESPONSE_FORMAT,
-  INVOICES_TRANSCRIPTION_USER_PROMPT,
-  INVOICES_TRANSCRIPTION_SYSTEM_PROMPT,
-  VERIFICATION_SYSTEM_PROMPT,
-} from './config/index.js';
 import { findOrCreateSheet, readSheetValues, writeSheetValues } from './drive.js';
 
 export type PriceListItem = {
@@ -111,63 +113,6 @@ async function saveProductRefs(
 
 // ── Verification (second agent call) ─────────────────────────────────────────
 
-function buildVerificationPrompt(
-  result: PriceListResult,
-  hints: string[],
-  unknowns: UnknownProduct[],
-): string {
-  const hintList = hints.length ? hints.map((h) => `  - ${h}`).join('\n') : '  (none)';
-  const unknownTable = unknowns.length
-    ? unknowns
-        .map((u) => `  "${u.ocr_name}" → ${u.correct_name ? `"${u.correct_name}"` : '(pending)'}`)
-        .join('\n')
-    : '  (none yet)';
-
-  return `You are verifying an OCR price-list transcription. Perform ALL tasks below in order.
-
-TASK 1 — VERIFY MATH (do this for every row before anything else):
-NEVER MODIFY NUMBERS. The "quantity", "unit_price", and "total" fields must be the EXACT digits written in the INPUT JSON — no rounding, no recalculating, no "correcting".
-Recalculate quantity × unit_price independently for each item and check if it matches the total. If it does not match, record the correct calculation in the note but do NOT change the total field.
-
-TASK 2 — VERIFY AND CORRECT PRODUCT NAMES:
-Known product hints (reference list A — canonical correct spellings):
-${hintList}
-
-Unknown products table (reference list B — past OCR mistakes mapped to confirmed correct names, use as training data):
-${unknownTable}
-
-For each item's "item" value, apply these rules IN ORDER and stop at the first match:
-1. Exact match in list A → keep as-is. ✅ exact.
-2. Exact string match against an ocr_name in list B with a confirmed correct_name → set "item" to that correct_name. ✅ exact. Do NOT treat this as fuzzy — the ocr_name was already seen and confirmed by the user.
-3. Fuzzy match in list A (item is NOT in list A exactly, but clearly an OCR noise variant: missing/wrong diacritics, swapped letters, truncated word) → set "item" to the matching hint's exact spelling. ✅ fuzzy — add original OCR value to "_fuzzy_unknowns".
-4. Fuzzy match against an ocr_name in list B with a confirmed correct_name (item is NOT an exact ocr_name match, but looks like a variant of one) → set "item" to that correct_name. ✅ fuzzy — add original OCR value to "_fuzzy_unknowns".
-5. Exact or fuzzy match against an ocr_name in list B where correct_name is (pending) → unrecognized, keep "item" unchanged, add to "_new_unknowns".
-6. No match anywhere → unrecognized, keep "item" unchanged, add to "_new_unknowns".
-
-TASK 3 — REWRITE THE "note" FIELD:
-NEVER MODIFY NUMBERS
-Replace each item's existing note entirely:
-- "✅" — math correct AND name matched exactly (rules 1 or 2).
-- "✅ ⚠️ Fuzzy: <original_ocr_name> → <corrected_name>" — math correct AND name matched via fuzzy inference (rules 3 or 4 ONLY).
-- "❌ <reason>" — anything wrong, in Vietnamese:
-    • Math wrong: "Tính sai: <qty> x <price> = <correct_result> (ghi <total>)"
-    • Name unrecognized: "Không nhận diện sản phẩm"
-    • Fuzzy match + math wrong: combine both, e.g. "Tính sai: ... | ⚠️ Fuzzy: <original> → <corrected>"
-    • Both unrecognized and math wrong: "Tính sai: ... | Không nhận diện sản phẩm"
-
-OUTPUT — exactly this JSON schema:
-{
-  "items": [ { "item": "...", "quantity": ..., "unit_price": ..., "total": ..., "note": "✅ or ❌ ..." } ],
-  "grand_total": <number or null>,
-  "summary_note": "<string>",
-  "_new_unknowns": ["<original OCR value — rules 5 & 6 only>"],
-  "_fuzzy_unknowns": ["<original OCR value — rules 3 & 4 only>"]
-}
-
-INPUT JSON to verify:
-${JSON.stringify(result, null, 2)}`;
-}
-
 type VerifiedRaw = PriceListResult & { _new_unknowns?: string[]; _fuzzy_unknowns?: string[] };
 
 async function verifyAndCorrect(
@@ -179,7 +124,7 @@ async function verifyAndCorrect(
 ): Promise<PriceListResult> {
   const input: AgentInput = {
     userPrompt: { text: buildVerificationPrompt(result, hints, unknowns) },
-    systemPrompt: VERIFICATION_SYSTEM_PROMPT,
+    systemPrompt: buildVerificationSystemPrompt(),
   };
 
   const content = await agentCore.run(
@@ -188,7 +133,7 @@ async function verifyAndCorrect(
     {
       maxTurns: 1,
       onDelta,
-      responseFormat: PRICE_LIST_RESPONSE_FORMAT,
+      responseFormat: { type: 'json_object' },
       noTools: true,
       temperature: 0,
     },
@@ -207,10 +152,13 @@ async function verifyAndCorrect(
   const hintMap = new Map(hints.map((h) => [h.toLowerCase(), h]));
 
   function mathNote(item: PriceListItem): string | null {
-    if (item.quantity == null || item.unit_price == null || item.total == null) return null;
-    const expected = Math.round(item.quantity * item.unit_price * 100) / 100;
-    if (Math.abs(expected - item.total) < 0.01) return null;
-    return `Tính sai: ${item.quantity} x ${item.unit_price} = ${expected} (ghi ${item.total})`;
+    const qty = item.quantity;
+    const price = item.unit_price;
+    const total = item.total;
+    if (qty == null || price == null || total == null) return null;
+    const expected = Math.round(qty * price * 100) / 100;
+    if (Math.abs(expected - total) < 0.01) return null;
+    return `Tính sai: ${qty} x ${price} = ${expected} (ghi ${total})`;
   }
 
   function similarWarning(name: string): string | null {
@@ -219,6 +167,8 @@ async function verifyAndCorrect(
       ? ` ⚠️ Lưu ý: ${group.join(' / ')} dễ nhầm lẫn — kiểm tra lại chữ viết tay.`
       : null;
   }
+
+  cleanResult.grand_total = cleanResult.grand_total;
 
   const codeFuzzyNames: string[] = [];
   cleanResult.items = cleanResult.items.map((item, i) => {
@@ -274,8 +224,8 @@ function buildInput(imageUrl: string, hints: string[], similarGroups: string[][]
     : '';
 
   return {
-    userPrompt: { image: { url: imageUrl }, text: [INVOICES_TRANSCRIPTION_USER_PROMPT, hintText] },
-    systemPrompt: INVOICES_TRANSCRIPTION_SYSTEM_PROMPT,
+    userPrompt: { image: { url: imageUrl }, text: [buildInvoiceTranscriptionPrompt(), hintText] },
+    systemPrompt: buildInvoicesTranscriptionSystemPrompt(),
   };
 }
 
@@ -297,13 +247,11 @@ export async function parsePriceListImage(
     {
       maxTurns: 1,
       onDelta,
-      responseFormat: PRICE_LIST_RESPONSE_FORMAT,
+      responseFormat: { type: 'json_object' },
       noTools: true,
       temperature: 0,
     },
   );
-
-  console.log(content);
 
   logger.info('Price-list parse: model output', { length: content.length });
 
