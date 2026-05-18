@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { XOAIModal } from '../llm/types/xiaomi-model/request-body.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 config({ path: path.resolve(__dirname, '../../.env') });
@@ -44,6 +45,10 @@ export const env = {
   openaiCompatApiKey: optional('OPENAI_COMPAT_API_KEY', ''),
   openaiCompatBaseUrl: optional('OPENAI_COMPAT_BASE_URL', ''),
   openaiCompatModel: optional('OPENAI_COMPAT_MODEL', ''),
+  // Xiaomi MiMo — fetch-based OpenAI-compatible integration (takes priority over openaiCompat)
+  xiaomiApiKey: optional('XIAOMI_API_KEY', ''),
+  xiaomiBaseUrl: optional('XIAOMI_BASE_URL', 'https://token-plan-sgp.xiaomimimo.com/v1'),
+  xiaomiModel: optional('XIAOMI_MODEL', '') as XOAIModal,
   // Comma-separated allowed CORS origins, e.g. "https://app.example.com,http://localhost:5173"
   corsOrigins: optional('CORS_ORIGINS', '')
     .split(',')

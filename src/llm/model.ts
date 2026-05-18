@@ -4,12 +4,13 @@ import { maxTokensUsed, stepCountIs } from '@openrouter/sdk/lib/stop-conditions.
 import type { Tool } from '@openrouter/sdk/lib/tool-types.js';
 import type { ChatStreamChunk } from '@openrouter/sdk/models/chatstreamchunk.js';
 import { env } from '../config/env.js';
-import type { AgentInput, CallModelOptions, DbMessage } from '../types/index.js';
+import type { AgentInput, CallModelOptions } from '../types/index.js';
 import { parseProvidersString } from '../utils/format.js';
 import { logger } from '../utils/logger.js';
 import { openrouterClient } from './client.js';
 import { agentInputToChatMessage, agentInputToInputsUnion1 } from './helpers/index.js';
 import { callOpenAICompatModel } from './openai-model.js';
+import { callXiaomiModel } from './xiaomi-model.js';
 
 export type CallModelResult = {
   kind: 'stream';
@@ -33,6 +34,10 @@ export async function callModel(
   sdkTools: Tool[],
   opts: CallModelOptions = {},
 ): Promise<CallModelResult> {
+  if (env.xiaomiApiKey) {
+    return callXiaomiModel(input, sdkTools, opts);
+  }
+
   if (env.openaiCompatApiKey) {
     return callOpenAICompatModel(input, sdkTools, opts);
   }
