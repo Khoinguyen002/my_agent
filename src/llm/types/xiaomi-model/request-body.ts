@@ -136,7 +136,7 @@ export type XOAIToolMessage = {
   /**
    * @description Tool call that this message is responding to.
    */
-  tool_call_id: string[];
+  tool_call_id: string;
 };
 
 export type XOAIModal =

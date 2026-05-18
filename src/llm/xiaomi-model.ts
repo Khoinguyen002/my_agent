@@ -233,7 +233,7 @@ async function* toolLoop(
 
     messages.push({
       role: 'assistant',
-      content: assistantContent || null,
+      content: assistantContent,
       tool_calls: toolCalls.map((tc) => ({
         id: tc.id,
         type: 'function' as const,
