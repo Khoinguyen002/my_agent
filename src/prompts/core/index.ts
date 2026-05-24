@@ -15,7 +15,9 @@ const buildTasks = (tasks: Task[], label = 'TASK'): string => {
       const subTasksText = t.subTasks?.length
         ? t.subTasks.map((s, k) => `  Subtask ${k + 1}: ${s}`).join('\n')
         : '';
-      const notesText = t.notes?.length ? t.notes.map((n, k) => `  ${k + 1}. ${n}`).join('\n') : '';
+      const notesText = t.notes?.length
+        ? t.notes.map((n, k) => `  Note ${k + 1}. ${n}`).join('\n')
+        : '';
       return `
 ${label} ${i + 1} — ${t.title}:
 ${t.description}
@@ -59,7 +61,9 @@ export class PromptTemplate {
 
     // Only render RULES if there are any
     if (this.rules.length > 0) {
-      const rulesText = this.rules.map((r, i) => `${i + 1}. ${r}`).join('\n  ');
+      const rulesText = this.rules
+        .map((r, i) => `RULE ${i + 1}. ${r.title}\n${r.description}`)
+        .join('\n');
       output += `\n[RULES]\n${rulesText}\n`;
     }
 
