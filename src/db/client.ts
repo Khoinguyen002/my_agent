@@ -4,7 +4,9 @@ import fs from 'fs';
 import { env } from '../config/env.js';
 
 const dataDir = path.resolve(env.dataDir);
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
 
 const dbPath = path.join(dataDir, 'agent.db');
 export const db: DatabaseType = new Database(dbPath);

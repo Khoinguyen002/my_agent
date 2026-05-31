@@ -1,9 +1,15 @@
-export function serializeObject(obj: any, indent = 2): string {
-  const pad = (level: number) => ' '.repeat(level);
+export function serializeObject(obj: unknown, indent = 2): string {
+  const pad = (level: number): string => ' '.repeat(level);
 
-  if (obj === null) return 'null';
-  if (typeof obj === 'number' || typeof obj === 'boolean') return obj.toString();
-  if (typeof obj === 'string') return `"${obj}"`; // string là description
+  if (obj === null) {
+    return 'null';
+  }
+  if (typeof obj === 'number' || typeof obj === 'boolean') {
+    return obj.toString();
+  }
+  if (typeof obj === 'string') {
+    return `"${obj}"`;
+  } // string là description
 
   if (Array.isArray(obj)) {
     const arrItems = obj.map((v) => `${pad(indent)}${serializeObject(v, indent + 2)}`);

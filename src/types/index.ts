@@ -1,11 +1,9 @@
-import { TurnContext } from '@openrouter/sdk/lib/tool-types.js';
-import {
+import type { TurnContext } from '@openrouter/sdk/lib/tool-types.js';
+import type {
   ChatAssistantMessage,
   ChatDeveloperMessage,
-  ChatMessages,
   ChatSystemMessage,
   ChatUserMessage,
-  InputsUnion1,
   OpenResponsesResult,
   ResponseFormat,
 } from '@openrouter/sdk/models';

@@ -6,7 +6,6 @@ import { logger } from '../utils/logger.js';
 import { buildMessages, parseSSE } from './helpers/xiaomi-model/index.js';
 import type { CallModelResult } from './model.js';
 import {
-  XOAIFunctionTool,
   XOAIMessage,
   XOAIRequestBody,
   XOAIResponseFormat,
@@ -45,8 +44,12 @@ import {
 // }
 
 function convertResponseFormat(rf: ResponseFormat): XOAIResponseFormat | undefined {
-  if (rf.type === 'text') return { type: 'text' };
-  if (rf.type === 'json_object') return { type: 'json_object' };
+  if (rf.type === 'text') {
+    return { type: 'text' };
+  }
+  if (rf.type === 'json_object') {
+    return { type: 'json_object' };
+  }
   if (rf.type === 'json_schema' && rf.jsonSchema) {
     return {
       type: 'json_object',
@@ -119,10 +122,16 @@ async function* toolLoop(
       yield chunk;
       const delta = chunk.choices[0]?.delta;
 
-      if (!delta) continue;
+      if (!delta) {
+        continue;
+      }
 
-      if (delta.content) assistantContent += delta.content;
-      if (delta.reasoning_content) reasoningContent += delta.reasoning_content;
+      if (delta.content) {
+        assistantContent += delta.content;
+      }
+      if (delta.reasoning_content) {
+        reasoningContent += delta.reasoning_content;
+      }
 
       for (const tc of delta.tool_calls ?? []) {
         const idx = tc.index;
@@ -143,7 +152,9 @@ async function* toolLoop(
       });
     }
 
-    if (toolCalls.length === 0) break;
+    if (toolCalls.length === 0) {
+      break;
+    }
 
     messages.push({
       role: 'assistant',
@@ -190,5 +201,6 @@ export async function callXiaomiModel(
 
   const generator = toolLoop(messages, sdkTools, opts);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { kind: 'stream', result: generator as any };
 }

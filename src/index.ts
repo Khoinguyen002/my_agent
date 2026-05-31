@@ -1,4 +1,3 @@
-import './config/env.js'; // loads .env and validates
 import { env } from './config/env.js';
 
 // DB must be initialized before anything that uses it
@@ -6,7 +5,11 @@ import './db/client.js';
 
 import { registerBuiltinTools } from './tools/implementations/index.js';
 import { toolRegistry } from './tools/registry.js';
-import { cronCreateTool, cronDeleteTool, cronListTool } from './tools/implementations/cron-manager.js';
+import {
+  cronCreateTool,
+  cronDeleteTool,
+  cronListTool,
+} from './tools/implementations/cron-manager.js';
 import { cronManager } from './cron/manager.js';
 import { createTelegramBot, startTelegramBot } from './adapters/telegram/bot.js';
 import { startApiServer } from './adapters/api/server.js';

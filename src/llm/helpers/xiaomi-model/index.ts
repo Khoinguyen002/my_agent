@@ -76,7 +76,9 @@ export async function* parseSSE(
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
@@ -85,10 +87,14 @@ export async function* parseSSE(
 
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue;
+        if (!trimmed.startsWith('data:')) {
+          continue;
+        }
 
         const data = trimmed.slice(5).trim();
-        if (data === '[DONE]') return;
+        if (data === '[DONE]') {
+          return;
+        }
 
         try {
           yield JSON.parse(data) as XOAIChatCompletionChunk;

@@ -2,7 +2,7 @@ import type { Tool } from '@openrouter/sdk/lib/tool-types.js';
 
 export type { Tool };
 
-class ToolRegistry {
+export class ToolRegistry {
   private tools = new Map<string, Tool>();
 
   register(tool: Tool): void {

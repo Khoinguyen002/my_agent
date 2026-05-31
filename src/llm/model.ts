@@ -7,6 +7,7 @@ import { env } from '../config/env.js';
 import type { AgentInput, CallModelOptions } from '../types/index.js';
 import { parseProvidersString } from '../utils/format.js';
 import { logger } from '../utils/logger.js';
+import { ErrorHandler, ModelError, ConfigError } from '../errors/index.js';
 import { openrouterClient } from './client.js';
 import { agentInputToChatMessage, agentInputToInputsUnion1 } from './helpers/index.js';
 import { callOpenAICompatModel } from './openai-model.js';
@@ -28,73 +29,97 @@ function hasImages(input: AgentInput): boolean {
  * - input is text only     → Responses API (callModel), which supports tools & multi-turn
  *
  * Callers pass AgentInput and never need to know which underlying API is used.
+ *
+ * @param input - The agent input containing user prompt and history
+ * @param sdkTools - Array of SDK tools to use
+ * @param opts - Optional configuration for the model call
+ * @returns Promise resolving to CallModelResult with stream
+ * @throws {ConfigError} If model configuration is invalid
+ * @throws {ModelError} If model call fails
  */
 export async function callModel(
   input: AgentInput,
   sdkTools: Tool[],
   opts: CallModelOptions = {},
 ): Promise<CallModelResult> {
-  if (env.xiaomiApiKey) {
-    return callXiaomiModel(input, sdkTools, opts);
-  }
+  try {
+    if (env.xiaomiApiKey) {
+      return await callXiaomiModel(input, sdkTools, opts);
+    }
 
-  if (env.openaiCompatApiKey) {
-    return callOpenAICompatModel(input, sdkTools, opts);
-  }
+    if (env.openaiCompatApiKey) {
+      return await callOpenAICompatModel(input, sdkTools, opts);
+    }
 
-  const provider = parseProvidersString(env.providers);
+    if (!env.model) {
+      throw new ConfigError('Model not configured', 'MODEL');
+    }
 
-  if (hasImages(input)) {
-    logger.debug('Model call (vision → chat.send)', {
-      model: env.model,
-      historyItems: input.history?.length ?? 0,
-    });
+    const provider = parseProvidersString(env.providers);
 
-    const response = await openrouterClient.chat.send({
-      chatRequest: {
+    if (hasImages(input)) {
+      logger.debug('Model call (vision → chat.send)', {
         model: env.model,
-        messages: agentInputToChatMessage(input),
-        ...(opts.responseFormat && { responseFormat: opts.responseFormat }),
-        ...(env.maxOutputTokens > 0 && {
-          maxCompletionTokens: env.maxOutputTokens,
-          maxTokens: env.maxOutputTokens,
-        }),
-        ...(provider && { provider }),
-        tools: sdkTools.length ? sdkTools : undefined,
-        stream: true,
-        temperature: opts.temperature,
-      },
+        historyItems: input.history?.length ?? 0,
+      });
+
+      const response = await openrouterClient.chat.send({
+        chatRequest: {
+          model: env.model,
+          messages: agentInputToChatMessage(input),
+          ...(opts.responseFormat && { responseFormat: opts.responseFormat }),
+          ...(env.maxOutputTokens > 0 && {
+            maxCompletionTokens: env.maxOutputTokens,
+            maxTokens: env.maxOutputTokens,
+          }),
+          ...(provider && { provider }),
+          tools: sdkTools.length ? sdkTools : undefined,
+          stream: true,
+          temperature: opts.temperature,
+        },
+      });
+
+      return { kind: 'stream', result: response };
+    }
+
+    // Text-only → Responses API (tools, multi-turn, context-compression)
+    const inputItems = agentInputToInputsUnion1(input);
+
+    const stopWhen = [
+      ...(opts.maxTurns !== undefined ? [stepCountIs(opts.maxTurns)] : []),
+      ...(env.maxOutputTokens > 0 ? [maxTokensUsed(env.maxOutputTokens)] : []),
+    ];
+
+    logger.debug('Model call (text → callModel)', {
+      model: env.model,
+      inputItems: inputItems.length,
+      tools: sdkTools.map((t) => t.function.name),
     });
 
-    return { kind: 'stream', result: response };
+    const result = openrouterClient.callModel({
+      model: env.model,
+      instructions: input.systemPrompt,
+      input: inputItems,
+      tools: sdkTools,
+      onTurnEnd: opts.onTurnEnd,
+      ...(opts.responseFormat && { responseFormat: opts.responseFormat }),
+      ...(env.contextCompression && { plugins: [{ id: 'context-compression' as const }] }),
+      ...(provider && { provider }),
+      ...(stopWhen.length > 0 && { stopWhen }),
+      ...(opts.sdkContext && { context: opts.sdkContext as never }),
+    });
+
+    return { kind: 'stream', result };
+  } catch (error) {
+    const appError = ErrorHandler.handle(error, {
+      model: env.model,
+      operation: 'callModel',
+    });
+
+    if (appError instanceof ConfigError) {
+      throw appError;
+    }
+
+    throw new ModelError(appError.message, env.model, 'openrouter');
   }
-
-  // Text-only → Responses API (tools, multi-turn, context-compression)
-  const inputItems = agentInputToInputsUnion1(input);
-
-  const stopWhen = [
-    ...(opts.maxTurns !== undefined ? [stepCountIs(opts.maxTurns)] : []),
-    ...(env.maxOutputTokens > 0 ? [maxTokensUsed(env.maxOutputTokens)] : []),
-  ];
-
-  logger.debug('Model call (text → callModel)', {
-    model: env.model,
-    inputItems: inputItems.length,
-    tools: sdkTools.map((t) => t.function.name),
-  });
-
-  const result = openrouterClient.callModel({
-    model: env.model,
-    instructions: input.systemPrompt,
-    input: inputItems,
-    tools: sdkTools,
-    onTurnEnd: opts.onTurnEnd,
-    ...(opts.responseFormat && { responseFormat: opts.responseFormat }),
-    ...(env.contextCompression && { plugins: [{ id: 'context-compression' as const }] }),
-    ...(provider && { provider }),
-    ...(stopWhen.length > 0 && { stopWhen }),
-    ...(opts.sdkContext && { context: opts.sdkContext as never }),
-  });
-
-  return { kind: 'stream', result };
 }

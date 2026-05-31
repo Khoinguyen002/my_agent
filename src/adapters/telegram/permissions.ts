@@ -8,7 +8,9 @@ const pendingApprovals = new Map<number, (answer: string) => void>();
 export function registerApprovalListener(bot: Bot): void {
   bot.on('message:text', (ctx, next) => {
     const chatId = ctx.chat?.id;
-    if (chatId === undefined) return next();
+    if (chatId === undefined) {
+      return next();
+    }
     const resolver = pendingApprovals.get(chatId);
     if (resolver) {
       const text = ctx.message?.text ?? '';

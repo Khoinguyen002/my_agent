@@ -3,7 +3,9 @@ import { Output, Rule, Task } from '../core/type.js';
 import type { PriceListPromptReferenceData } from '../../adapters/api/types/price-list-types.js';
 
 function buildReferenceText(groups: PriceListPromptReferenceData['groups']): string {
-  if (!groups.length) return '(none)';
+  if (!groups.length) {
+    return '(none)';
+  }
 
   return groups
     .map((group: PriceListPromptReferenceData['groups'][number]) => {
@@ -16,7 +18,9 @@ function buildReferenceText(groups: PriceListPromptReferenceData['groups']): str
 function buildSimilarGroupText(
   similarGroups: PriceListPromptReferenceData['similarGroups'],
 ): string {
-  if (!similarGroups.length) return '(none)';
+  if (!similarGroups.length) {
+    return '(none)';
+  }
 
   return similarGroups
     .map((group) => {
@@ -28,7 +32,7 @@ function buildSimilarGroupText(
     .join('\n');
 }
 
-export const buildInvoiceTranscriptionPrompt = (refs: PriceListPromptReferenceData) => {
+export const buildInvoiceTranscriptionPrompt = (refs: PriceListPromptReferenceData): string => {
   const role =
     'You are a STRICT OCR TRANSCRIBER AND VERIFIER. Output ONLY valid JSON, with no conversational text or markdown outside the JSON block';
 
@@ -117,7 +121,7 @@ export const buildInvoiceTranscriptionPrompt = (refs: PriceListPromptReferenceDa
   return new PromptTemplate({ role, output, rules, tasks }).build();
 };
 
-export const buildInvoicesTranscriptionSystemPrompt = () => {
+export const buildInvoicesTranscriptionSystemPrompt = (): string => {
   const role = 'You are a STRICT, LITERAL OCR TRANSCRIBER AND VERIFIER.';
 
   const tasks: Task[] = [

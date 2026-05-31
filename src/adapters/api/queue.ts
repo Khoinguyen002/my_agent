@@ -2,7 +2,7 @@ type Task<T> = () => Promise<T>;
 
 export type RetryOptions = {
   maxAttempts?: number; // default 3
-  delayMs?: number;     // base delay, doubles each attempt (exponential backoff)
+  delayMs?: number; // base delay, doubles each attempt (exponential backoff)
 };
 
 async function withRetry<T>(task: Task<T>, opts: RetryOptions): Promise<T> {
@@ -36,17 +36,22 @@ class ConcurrentQueue {
   add<T>(task: Task<T>, retryOverride?: RetryOptions): Promise<T> {
     const opts = retryOverride ?? this.retry;
     return new Promise((resolve, reject) => {
-      const run = () => {
+      const run = (): void => {
         this.running++;
         withRetry(task, opts)
           .then(resolve, reject)
           .finally(() => {
             this.running--;
-            if (this.pending.length > 0) this.pending.shift()!();
+            if (this.pending.length > 0) {
+              this.pending.shift()!();
+            }
           });
       };
-      if (this.running < this.maxConcurrent) run();
-      else this.pending.push(run);
+      if (this.running < this.maxConcurrent) {
+        run();
+      } else {
+        this.pending.push(run);
+      }
     });
   }
 }

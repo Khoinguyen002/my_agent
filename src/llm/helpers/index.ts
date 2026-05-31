@@ -1,17 +1,13 @@
 import {
-  ChatAssistantMessage,
-  ChatDeveloperMessage,
-  ChatSystemMessage,
-  ChatUserMessage,
   EasyInputMessage,
   FunctionCallItem,
   FunctionCallOutputItem,
   InputsUnion1,
 } from '@openrouter/sdk/models';
 import type { ChatMessages } from '@openrouter/sdk/models/chatmessages.js';
-import { AgentInput, CallModalPrompts, DbMessage } from '../../types/index.js';
+import type { AgentInput, DbMessage } from '../../types/index.js';
 
-export function dbMessagesToInputUnion1(messages: DbMessage[]) {
+export function dbMessagesToInputUnion1(messages: DbMessage[]): InputsUnion1[] {
   const result: InputsUnion1[] = [];
   for (const msg of messages) {
     if (msg.role === 'user') {
@@ -23,11 +19,12 @@ export function dbMessagesToInputUnion1(messages: DbMessage[]) {
         toolName: string;
         arguments: string;
       }>;
-      if (msg.content)
+      if (msg.content) {
         result.push({
           role: 'assistant',
           content: msg.content,
         } as EasyInputMessage);
+      }
       for (const tc of toolCalls) {
         result.push({
           type: 'function_call',
@@ -53,7 +50,7 @@ export function dbMessagesToInputUnion1(messages: DbMessage[]) {
   return result;
 }
 
-export function dbMessagesToChatMessages(messages: DbMessage[]) {
+export function dbMessagesToChatMessages(messages: DbMessage[]): ChatMessages[] {
   const result: ChatMessages[] = [];
   for (const msg of messages) {
     if (msg.role === 'user') {
@@ -65,7 +62,9 @@ export function dbMessagesToChatMessages(messages: DbMessage[]) {
         toolName: string;
         arguments: string;
       }>;
-      if (msg.content) result.push({ role: 'assistant', content: msg.content });
+      if (msg.content) {
+        result.push({ role: 'assistant', content: msg.content });
+      }
       for (const tc of toolCalls) {
         result.push({
           role: 'tool',
@@ -93,14 +92,18 @@ export function agentInputToInputsUnion1(input: AgentInput): InputsUnion1[] {
   }
 
   if (userContent.text) {
-    Array.isArray(userContent.text)
-      ? userContent.text.forEach((text) => result.push({ role: 'user', content: text }))
-      : result.push({ role: 'user', content: userContent.text });
+    if (Array.isArray(userContent.text)) {
+      userContent.text.forEach((text) => result.push({ role: 'user', content: text }));
+    } else {
+      result.push({ role: 'user', content: userContent.text });
+    }
   }
   if (userContent.image) {
-    Array.isArray(userContent.image)
-      ? userContent.image.forEach((img) => result.push({ role: 'user', content: img }))
-      : result.push({ role: 'user', content: userContent.text });
+    if (Array.isArray(userContent.image)) {
+      userContent.image.forEach((img) => result.push({ role: 'user', content: img }));
+    } else {
+      result.push({ role: 'user', content: userContent.text });
+    }
   }
 
   return result;
@@ -116,28 +119,32 @@ export function agentInputToChatMessage(input: AgentInput): ChatMessages[] {
   }
 
   if (userContent.text) {
-    Array.isArray(userContent.text)
-      ? userContent.text.forEach((text) => result.push({ role: 'user', content: text }))
-      : result.push({ role: 'user', content: [{ text: userContent.text, type: 'text' }] });
+    if (Array.isArray(userContent.text)) {
+      userContent.text.forEach((text) => result.push({ role: 'user', content: text }));
+    } else {
+      result.push({ role: 'user', content: [{ text: userContent.text, type: 'text' }] });
+    }
   }
   if (userContent.image) {
-    Array.isArray(userContent.image)
-      ? userContent.image.forEach((img) =>
-          result.push({
-            role: 'user',
-            content: [
-              { type: 'image_url', imageUrl: { url: img.url } },
-              { type: 'text', text: img.caption ?? '' },
-            ],
-          }),
-        )
-      : result.push({
+    if (Array.isArray(userContent.image)) {
+      userContent.image.forEach((img) =>
+        result.push({
           role: 'user',
           content: [
-            { type: 'image_url', imageUrl: { url: userContent.image.url } },
-            { type: 'text', text: userContent.image.caption ?? '' },
+            { type: 'image_url', imageUrl: { url: img.url } },
+            { type: 'text', text: img.caption ?? '' },
           ],
-        });
+        }),
+      );
+    } else {
+      result.push({
+        role: 'user',
+        content: [
+          { type: 'image_url', imageUrl: { url: userContent.image.url } },
+          { type: 'text', text: userContent.image.caption ?? '' },
+        ],
+      });
+    }
   }
 
   return result;

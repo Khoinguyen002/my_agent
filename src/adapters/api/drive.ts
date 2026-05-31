@@ -1,5 +1,4 @@
-import { google } from 'googleapis';
-import type { drive_v3 } from 'googleapis';
+import { google, type drive_v3 } from 'googleapis';
 import { Readable } from 'stream';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
@@ -11,7 +10,7 @@ export type DriveUploadResult = {
   folderUrl: string | null;
 };
 
-function loadOAuthClient() {
+function loadOAuthClient(): InstanceType<typeof google.auth.OAuth2> {
   const { googleOAuthClientId, googleOAuthClientSecret, googleOAuthRefreshToken } = env;
   if (!googleOAuthClientId || !googleOAuthClientSecret || !googleOAuthRefreshToken) {
     throw new Error('Missing Google OAuth env vars');
@@ -26,7 +25,9 @@ function makePublicUrl(fileId: string): string {
 }
 
 /** Create a Drive folder by name under an optional parent. Always creates a new folder. */
-export async function createDriveFolder(name: string): Promise<{ folderId: string; folderUrl: string }> {
+export async function createDriveFolder(
+  name: string,
+): Promise<{ folderId: string; folderUrl: string }> {
   const auth = loadOAuthClient();
   const drive = google.drive({ version: 'v3', auth });
 
@@ -34,10 +35,14 @@ export async function createDriveFolder(name: string): Promise<{ folderId: strin
     name,
     mimeType: 'application/vnd.google-apps.folder',
   };
-  if (env.driveFolderId) meta.parents = [env.driveFolderId];
+  if (env.driveFolderId) {
+    meta.parents = [env.driveFolderId];
+  }
 
   const created = await drive.files.create({ requestBody: meta, fields: 'id' });
-  if (!created.data.id) throw new Error('Drive: failed to create folder');
+  if (!created.data.id) {
+    throw new Error('Drive: failed to create folder');
+  }
 
   const folderId = created.data.id;
   logger.info('Drive: folder created', { name, folderId });
@@ -121,7 +126,9 @@ export async function uploadToDrive(
 
   const parentId = folderId ?? env.driveFolderId ?? undefined;
   const requestBody: { name: string; parents?: string[] } = { name: filename };
-  if (parentId) requestBody.parents = [parentId];
+  if (parentId) {
+    requestBody.parents = [parentId];
+  }
 
   const createRes = await drive.files.create({
     requestBody,
@@ -130,7 +137,9 @@ export async function uploadToDrive(
   });
 
   const fileId = createRes.data.id;
-  if (!fileId) throw new Error('Drive upload failed: missing file ID');
+  if (!fileId) {
+    throw new Error('Drive upload failed: missing file ID');
+  }
 
   if (env.drivePublic) {
     await drive.permissions.create({

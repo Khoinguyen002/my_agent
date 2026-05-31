@@ -1,17 +1,20 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
+import helmet from '@fastify/helmet';
 import { env } from '../../config/env.js';
 import { parsePriceListImage } from './price-list.js';
 import { logger } from '../../utils/logger.js';
 import { createDriveFolder, uploadToDrive } from './drive.js';
 import { enhanceImage } from './enhance.js';
 import { jobQueue } from './queue.js';
+import { ErrorHandler, ValidationError } from '../../errors/index.js';
+import { ImageUploadSchema, validate } from '../../validation/index.js';
 
 function newBatchId(): string {
   const now = new Date();
-  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  const pad = (n: number, len = 2): string => String(n).padStart(len, '0');
   const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   return `price-list-${stamp}`;
 }
@@ -36,7 +39,9 @@ function startSse(reply: FastifyReply): void {
   // Copy headers already set by Fastify hooks (e.g. @fastify/cors) onto the raw
   // response before hijacking — hijack() bypasses onSend so they'd be lost otherwise.
   for (const [key, value] of Object.entries(reply.getHeaders())) {
-    if (value !== undefined) reply.raw.setHeader(key, value as string | string[]);
+    if (value !== undefined) {
+      reply.raw.setHeader(key, value as string | string[]);
+    }
   }
   reply.hijack();
   reply.raw.statusCode = 200;
@@ -49,7 +54,11 @@ function startSse(reply: FastifyReply): void {
 
 type FileEntry = { raw: Buffer; originalName: string; mimetype: string };
 
-async function processFile(entry: FileEntry, folderId: string, onDelta?: (delta: unknown) => void) {
+async function processFile(
+  entry: FileEntry,
+  folderId: string,
+  onDelta?: (delta: unknown) => void,
+): Promise<ReturnType<typeof parsePriceListImage>> {
   const filename = entry.originalName;
 
   const { buffer, mimeType: mime } = await enhanceImage(entry.raw);
@@ -68,6 +77,30 @@ async function processFile(entry: FileEntry, folderId: string, onDelta?: (delta:
 export async function startApiServer(): Promise<void> {
   const fastify = Fastify({ logger: false });
 
+  // Security headers
+  await fastify.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  });
+
+  // Rate limiting
+  await fastify.register(rateLimit, {
+    max: 100, // Maximum 100 requests
+    timeWindow: '1 minute', // Per minute
+    errorResponseBuilder: (_request, context) => ({
+      code: 429,
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded. Retry after ${context.after}`,
+    }),
+  });
+
   if (env.corsOrigins.length > 0) {
     await fastify.register(cors, { origin: env.corsOrigins });
   }
@@ -79,12 +112,102 @@ export async function startApiServer(): Promise<void> {
     },
   });
 
+  // Health check endpoint
+  fastify.get('/health', async (_request, reply) => {
+    try {
+      // Check database connectivity
+      const { db } = await import('../../db/client.js');
+      db.prepare('SELECT 1').get();
+
+      return reply.code(200).send({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        version: process.env['npm_package_version'] || '1.0.0',
+        environment: process.env['NODE_ENV'] || 'development',
+      });
+    } catch (error) {
+      const appError = ErrorHandler.handle(error, { operation: 'health-check' });
+      return reply.code(503).send({
+        status: 'unhealthy',
+        timestamp: new Date().toISOString(),
+        error: appError.message,
+      });
+    }
+  });
+
+  // Readiness check endpoint
+  fastify.get('/ready', async (_request, reply) => {
+    try {
+      // Check if all required services are ready
+      const { db } = await import('../../db/client.js');
+      db.prepare('SELECT 1').get();
+
+      return reply.code(200).send({
+        status: 'ready',
+        timestamp: new Date().toISOString(),
+        services: {
+          database: 'connected',
+          api: 'running',
+        },
+      });
+    } catch (error) {
+      const appError = ErrorHandler.handle(error, { operation: 'readiness-check' });
+      return reply.code(503).send({
+        status: 'not_ready',
+        timestamp: new Date().toISOString(),
+        error: appError.message,
+      });
+    }
+  });
+
+  // Metrics endpoint
+  fastify.get('/metrics', async (_request, reply) => {
+    try {
+      const { getConversationCount } = await import('../../db/conversations.js');
+      const { getMessageCount } = await import('../../db/conversations.js');
+
+      const conversationCount = getConversationCount();
+      const messageCount = getMessageCount('all'); // This needs to be updated
+
+      return reply.code(200).send({
+        timestamp: new Date().toISOString(),
+        metrics: {
+          conversations: conversationCount,
+          messages: messageCount,
+          uptime: process.uptime(),
+          memory: process.memoryUsage(),
+        },
+      });
+    } catch (error) {
+      const appError = ErrorHandler.handle(error, { operation: 'metrics' });
+      return reply.code(500).send({
+        error: appError.message,
+      });
+    }
+  });
+
   fastify.post('/api/price-list', async (request, reply) => {
     try {
       // Collect all uploaded files first
       const entries: FileEntry[] = [];
       for await (const part of request.files()) {
         const raw = await part.toBuffer();
+
+        // Validate file
+        const validationResult = validate(ImageUploadSchema, {
+          filename: part.filename,
+          mimetype: part.mimetype,
+          size: raw.length,
+        });
+
+        if (!validationResult.success) {
+          throw new ValidationError('Invalid file upload', {
+            file: part.filename,
+            errors: validationResult.errors.map((e) => e.message).join(', '),
+          });
+        }
+
         entries.push({ raw, originalName: part.filename, mimetype: part.mimetype });
       }
 
@@ -130,15 +253,22 @@ export async function startApiServer(): Promise<void> {
 
       return reply.code(200).send(results);
     } catch (error) {
-      logger.error('price-list handler error', { error });
+      const appError = ErrorHandler.handle(error, {
+        operation: 'price-list',
+        endpoint: '/api/price-list',
+      });
+
       if (!reply.sent) {
-        reply.code(500).send({ error: String(error) });
+        const errorResponse = ErrorHandler.toResponse(appError);
+        reply.code(appError.statusCode).send(errorResponse);
       }
     }
   });
 
   const port = env.apiPort;
-  if (port <= 0) return;
+  if (port <= 0) {
+    return;
+  }
 
   await fastify.listen({ port, host: '0.0.0.0' });
   logger.info(`API server listening on :${port}`);

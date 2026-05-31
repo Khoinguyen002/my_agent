@@ -1,4 +1,4 @@
-import { UserProfile, UserRow } from "../types/user/index.js";
+import { UserProfile, UserRow } from '../types/user/index.js';
 
 export function rowToProfile(row: UserRow): UserProfile {
   return {

@@ -3,7 +3,9 @@ import type { UserProfile } from '../db/types/user/index.js';
 
 export async function runCliOnboarding(): Promise<UserProfile> {
   const existing = getUserBySourceId('cli', 'cli');
-  if (existing) return existing;
+  if (existing) {
+    return existing;
+  }
 
   const { input } = await import('@inquirer/prompts');
 
@@ -29,16 +31,20 @@ export async function runCliOnboarding(): Promise<UserProfile> {
 export async function runTelegramOnboarding(
   chatId: number,
   sendMessage: (text: string) => Promise<void>,
-  waitForReply: () => Promise<string>
+  waitForReply: () => Promise<string>,
 ): Promise<UserProfile> {
   const existing = getUserBySourceId('telegram', String(chatId));
-  if (existing) return existing;
+  if (existing) {
+    return existing;
+  }
 
   await sendMessage("Hi! I'm your AI agent. Before we begin, I'd like to learn a bit about you.");
   await sendMessage('What is your name?');
   const name = await waitForReply();
 
-  await sendMessage(`Nice to meet you, ${name}! What do you expect from me? (e.g. coding help, research, reminders)`);
+  await sendMessage(
+    `Nice to meet you, ${name}! What do you expect from me? (e.g. coding help, research, reminders)`,
+  );
   const expectations = await waitForReply();
 
   const profile = saveUserProfile({
@@ -53,6 +59,9 @@ export async function runTelegramOnboarding(
   return profile;
 }
 
-export function getOrNullProfile(source: UserProfile['source'], sourceId: string): UserProfile | undefined {
+export function getOrNullProfile(
+  source: UserProfile['source'],
+  sourceId: string,
+): UserProfile | undefined {
   return getUserBySourceId(source, sourceId);
 }

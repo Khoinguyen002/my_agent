@@ -1,5 +1,5 @@
 export function truncate(str: string, maxLen = 80): string {
-  return str.length <= maxLen ? str : str.slice(0, maxLen - 3) + '...';
+  return str.length <= maxLen ? str : `${str.slice(0, maxLen - 3)}...`;
 }
 
 export function formatDate(ts: number): string {
@@ -33,14 +33,18 @@ const PROVIDER_NAME_MAP: Record<string, string> = {
 export function parseProvidersString(
   providersStr: string | undefined,
 ): ProviderPreferences | undefined {
-  if (!providersStr) return undefined;
-  let nameOrder: string[] = [];
-  let quantizations: ProviderPreferences['quantizations'] = [];
+  if (!providersStr) {
+    return undefined;
+  }
+  const nameOrder: string[] = [];
+  const quantizations: ProviderPreferences['quantizations'] = [];
   const providerEntries = providersStr.split(',').map((s) => s.trim());
 
   for (const entry of providerEntries) {
     const [rawProvider, quantization] = entry.split('/');
-    if (!rawProvider) continue;
+    if (!rawProvider) {
+      continue;
+    }
     const name = PROVIDER_NAME_MAP[rawProvider.toLowerCase()] ?? rawProvider;
     nameOrder.push(name);
 
@@ -51,6 +55,8 @@ export function parseProvidersString(
     }
   }
 
-  if (nameOrder.length === 0) return undefined;
+  if (nameOrder.length === 0) {
+    return undefined;
+  }
   return { order: nameOrder, allowFallbacks: true, quantizations };
 }

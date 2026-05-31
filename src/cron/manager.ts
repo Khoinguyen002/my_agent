@@ -2,11 +2,7 @@ import cron from 'node-cron';
 import { v4 as uuidv4 } from 'uuid';
 import { loadCrons, saveCrons } from './store.js';
 import { agentCore } from '../agent/core.js';
-import {
-  appendMessage,
-  createConversation,
-  getMessages,
-} from '../db/conversations.js';
+import { appendMessage, createConversation, getMessages } from '../db/conversations.js';
 import type { AgentInput, CronJob, ToolContext } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { createTelegramSendTool } from '../tools/implementations/telegram-send.js';
@@ -22,7 +18,9 @@ export class CronManager {
   initialize(): void {
     this.jobs = loadCrons();
     for (const job of this.jobs) {
-      if (job.enabled) this.schedule(job);
+      if (job.enabled) {
+        this.schedule(job);
+      }
     }
     logger.info(`CronManager: loaded ${this.jobs.length} jobs`);
   }
@@ -39,13 +37,17 @@ export class CronManager {
     const job: CronJob = { ...opts, id: uuidv4(), createdAt: now, updatedAt: now };
     this.jobs.push(job);
     saveCrons(this.jobs);
-    if (job.enabled) this.schedule(job);
+    if (job.enabled) {
+      this.schedule(job);
+    }
     return job;
   }
 
   async update(id: string, patch: Partial<Omit<CronJob, 'id' | 'createdAt'>>): Promise<CronJob> {
     const idx = this.jobs.findIndex((j) => j.id === id || j.id.startsWith(id));
-    if (idx === -1) throw new Error(`Cron job not found: ${id}`);
+    if (idx === -1) {
+      throw new Error(`Cron job not found: ${id}`);
+    }
 
     const job = { ...this.jobs[idx]!, ...patch, updatedAt: Date.now() };
     this.jobs[idx] = job;
@@ -54,14 +56,18 @@ export class CronManager {
     // Reschedule
     this.handles.get(job.id)?.stop();
     this.handles.delete(job.id);
-    if (job.enabled) this.schedule(job);
+    if (job.enabled) {
+      this.schedule(job);
+    }
 
     return job;
   }
 
   async delete(id: string): Promise<void> {
     const idx = this.jobs.findIndex((j) => j.id === id || j.id.startsWith(id));
-    if (idx === -1) throw new Error(`Cron job not found: ${id}`);
+    if (idx === -1) {
+      throw new Error(`Cron job not found: ${id}`);
+    }
     const job = this.jobs[idx]!;
     this.handles.get(job.id)?.stop();
     this.handles.delete(job.id);
@@ -71,12 +77,16 @@ export class CronManager {
 
   async trigger(id: string): Promise<void> {
     const job = this.jobs.find((j) => j.id === id || j.id.startsWith(id));
-    if (!job) throw new Error(`Cron job not found: ${id}`);
+    if (!job) {
+      throw new Error(`Cron job not found: ${id}`);
+    }
     await this.executeCron(job);
   }
 
   stopAll(): void {
-    for (const handle of this.handles.values()) handle.stop();
+    for (const handle of this.handles.values()) {
+      handle.stop();
+    }
     this.handles.clear();
   }
 
@@ -89,7 +99,11 @@ export class CronManager {
 
   private async executeCron(job: CronJob): Promise<void> {
     logger.info(`Cron executing: ${job.name}`);
-    const conv = createConversation({ source: 'cron', cronJobId: job.id, title: `[cron] ${job.name}` });
+    const conv = createConversation({
+      source: 'cron',
+      cronJobId: job.id,
+      title: `[cron] ${job.name}`,
+    });
 
     const context: ToolContext = {
       conversationId: conv.id,
@@ -116,7 +130,12 @@ export class CronManager {
   private updateJobStatus(id: string, status: 'success' | 'error'): void {
     const idx = this.jobs.findIndex((j) => j.id === id);
     if (idx !== -1) {
-      this.jobs[idx] = { ...this.jobs[idx]!, lastRunAt: Date.now(), lastRunStatus: status, updatedAt: Date.now() };
+      this.jobs[idx] = {
+        ...this.jobs[idx]!,
+        lastRunAt: Date.now(),
+        lastRunStatus: status,
+        updatedAt: Date.now(),
+      };
       saveCrons(this.jobs);
     }
   }

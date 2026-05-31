@@ -25,9 +25,11 @@ export function registerHandlers(bot: Bot): void {
 
   bot.command('start', async (ctx) => {
     const chatId = ctx.chat?.id;
-    if (!chatId) return;
+    if (!chatId) {
+      return;
+    }
 
-    const sendMessage = async (text: string) => {
+    const sendMessage = async (text: string): Promise<void> => {
       await ctx.reply(text);
     };
     const waitForReply = (): Promise<string> =>
@@ -40,7 +42,9 @@ export function registerHandlers(bot: Bot): void {
 
   bot.command('new', async (ctx) => {
     const chatId = ctx.chat?.id;
-    if (!chatId) return;
+    if (!chatId) {
+      return;
+    }
     createConversation({
       source: 'telegram',
       telegramChatId: chatId,
@@ -56,7 +60,7 @@ export function registerHandlers(bot: Bot): void {
 
     await ctx.replyWithChatAction('typing');
 
-    const sendMessage = async (msg: string) => {
+    const sendMessage = async (msg: string): Promise<void> => {
       await ctx.reply(msg);
     };
     const conversationId =
@@ -107,10 +111,14 @@ export function registerHandlers(bot: Bot): void {
   bot.on('message:text', async (ctx) => {
     const chatId = ctx.chat?.id;
     const text = ctx.message?.text;
-    if (!chatId || !text) return;
+    if (!chatId || !text) {
+      return;
+    }
 
     // Skip commands handled elsewhere
-    if (text.startsWith('/')) return;
+    if (text.startsWith('/')) {
+      return;
+    }
 
     // Unblock pending onboarding waiter
     const waiter = onboardingWaiters.get(chatId);
@@ -128,7 +136,7 @@ export function registerHandlers(bot: Bot): void {
         source: 'telegram',
         telegramChatId: chatId,
       }).id;
-    const sendMessage = async (msg: string) => {
+    const sendMessage = async (msg: string): Promise<void> => {
       await ctx.reply(msg);
     };
     const requestApproval = createApprovalRequester(chatId, sendMessage);

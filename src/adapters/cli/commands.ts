@@ -13,12 +13,14 @@ export async function handleCommand(
   currentConversationId: string | null,
   newConversation: () => string,
   cronManager: CronManager,
-  switchConversation: (id: string) => void
+  switchConversation: (id: string) => void,
 ): Promise<CommandResult> {
   const parts = line.trim().split(/\s+/);
   const cmd = parts[0]?.toLowerCase();
 
-  if (!cmd?.startsWith('/')) return { handled: false };
+  if (!cmd?.startsWith('/')) {
+    return { handled: false };
+  }
 
   switch (cmd) {
     case '/new': {
@@ -35,7 +37,9 @@ export async function handleCommand(
         console.log('\nConversations:');
         for (const c of convs) {
           const marker = c.id === currentConversationId ? ' *' : '  ';
-          console.log(`${marker}[${c.id.slice(0, 8)}] ${truncate(c.title, 50)} — ${formatDate(c.updatedAt)}`);
+          console.log(
+            `${marker}[${c.id.slice(0, 8)}] ${truncate(c.title, 50)} — ${formatDate(c.updatedAt)}`,
+          );
         }
         console.log();
       }
@@ -44,9 +48,15 @@ export async function handleCommand(
 
     case '/load': {
       const id = parts[1];
-      if (!id) { console.log('\nUsage: /load <conversation-id>\n'); return { handled: true }; }
+      if (!id) {
+        console.log('\nUsage: /load <conversation-id>\n');
+        return { handled: true };
+      }
       const conv = getConversation(id) ?? listConversations().find((c) => c.id.startsWith(id));
-      if (!conv) { console.log(`\nConversation not found: ${id}\n`); return { handled: true }; }
+      if (!conv) {
+        console.log(`\nConversation not found: ${id}\n`);
+        return { handled: true };
+      }
       switchConversation(conv.id);
       console.log(`\nLoaded: ${conv.title}\n`);
       return { handled: true, newConversationId: conv.id };
@@ -57,13 +67,18 @@ export async function handleCommand(
       switch (sub) {
         case 'list': {
           const jobs = cronManager.list();
-          if (jobs.length === 0) { console.log('\nNo cron jobs.\n'); break; }
+          if (jobs.length === 0) {
+            console.log('\nNo cron jobs.\n');
+            break;
+          }
           console.log('\nCron jobs:');
           for (const j of jobs) {
             const status = j.enabled ? '\x1b[32m●\x1b[0m' : '\x1b[90m○\x1b[0m';
             console.log(`  ${status} [${j.id.slice(0, 8)}] ${j.name} — ${j.schedule}`);
             console.log(`     Prompt: ${truncate(j.prompt, 60)}`);
-            if (j.lastRunAt) console.log(`     Last run: ${formatDate(j.lastRunAt)} (${j.lastRunStatus})`);
+            if (j.lastRunAt) {
+              console.log(`     Last run: ${formatDate(j.lastRunAt)} (${j.lastRunStatus})`);
+            }
           }
           console.log();
           break;
@@ -71,7 +86,9 @@ export async function handleCommand(
         case 'add': {
           const { input } = await import('@inquirer/prompts');
           const name = await input({ message: 'Cron name:' });
-          const schedule = await input({ message: 'Schedule (cron expression, e.g. "0 9 * * *"):' });
+          const schedule = await input({
+            message: 'Schedule (cron expression, e.g. "0 9 * * *"):',
+          });
           const prompt = await input({ message: 'Prompt to run:' });
           const job = await cronManager.create({ name, schedule, prompt, enabled: true });
           console.log(`\nCreated cron job: ${job.id}\n`);
@@ -79,35 +96,49 @@ export async function handleCommand(
         }
         case 'delete': {
           const id = parts[2];
-          if (!id) { console.log('\nUsage: /cron delete <id>\n'); break; }
+          if (!id) {
+            console.log('\nUsage: /cron delete <id>\n');
+            break;
+          }
           await cronManager.delete(id);
           console.log(`\nDeleted cron job: ${id}\n`);
           break;
         }
         case 'enable': {
           const id = parts[2];
-          if (!id) { console.log('\nUsage: /cron enable <id>\n'); break; }
+          if (!id) {
+            console.log('\nUsage: /cron enable <id>\n');
+            break;
+          }
           await cronManager.update(id, { enabled: true });
           console.log(`\nEnabled: ${id}\n`);
           break;
         }
         case 'disable': {
           const id = parts[2];
-          if (!id) { console.log('\nUsage: /cron disable <id>\n'); break; }
+          if (!id) {
+            console.log('\nUsage: /cron disable <id>\n');
+            break;
+          }
           await cronManager.update(id, { enabled: false });
           console.log(`\nDisabled: ${id}\n`);
           break;
         }
         case 'trigger': {
           const id = parts[2];
-          if (!id) { console.log('\nUsage: /cron trigger <id>\n'); break; }
+          if (!id) {
+            console.log('\nUsage: /cron trigger <id>\n');
+            break;
+          }
           console.log(`\nTriggering cron job: ${id}...\n`);
           await cronManager.trigger(id);
           console.log('Done.\n');
           break;
         }
         default:
-          console.log('\nCron commands: /cron list | add | delete <id> | enable <id> | disable <id> | trigger <id>\n');
+          console.log(
+            '\nCron commands: /cron list | add | delete <id> | enable <id> | disable <id> | trigger <id>\n',
+          );
       }
       return { handled: true };
     }

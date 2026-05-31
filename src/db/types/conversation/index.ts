@@ -23,7 +23,7 @@ export interface MsgRow {
 export interface Conversation {
   id: string;
   title: string;
-  source: "cli" | "telegram" | "cron";
+  source: 'cli' | 'telegram' | 'cron';
   telegramChatId?: number;
   cronJobId?: string;
   createdAt: number;

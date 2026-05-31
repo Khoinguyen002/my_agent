@@ -18,7 +18,9 @@ function uniqueStrings(values: string[]): string[] {
 
   for (const value of values) {
     const normalized = normalizeText(value);
-    if (!normalized || seen.has(normalized)) continue;
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
     seen.add(normalized);
     result.push(normalized);
   }
@@ -27,7 +29,9 @@ function uniqueStrings(values: string[]): string[] {
 }
 
 function parseReferenceSheet(values: string[][]): PriceListReferenceStore {
-  if (!values.length) return { unknowns: [], similarGroups: [] };
+  if (!values.length) {
+    return { unknowns: [], similarGroups: [] };
+  }
 
   const sheetRows = values[0]?.[0] === 'Hints' ? values.slice(1) : values;
   const ocrHeaderIdx = sheetRows.findIndex((row) => row[0] === 'ocr_name');
@@ -55,7 +59,9 @@ function serializeReferenceSheet(store: PriceListReferenceStore): string[][] {
 
 export async function readPriceListReferenceStore(): Promise<PriceListReferenceStore> {
   const folderId = env.driveFolderId;
-  if (!folderId) return { unknowns: [], similarGroups: [] };
+  if (!folderId) {
+    return { unknowns: [], similarGroups: [] };
+  }
 
   try {
     const sheetId = await findOrCreateSheet(REFS_SHEET_NAME, folderId);
@@ -68,7 +74,9 @@ export async function readPriceListReferenceStore(): Promise<PriceListReferenceS
 
 export async function savePriceListReferenceStore(store: PriceListReferenceStore): Promise<void> {
   const folderId = env.driveFolderId;
-  if (!folderId) return;
+  if (!folderId) {
+    return;
+  }
 
   const sheetId = await findOrCreateSheet(REFS_SHEET_NAME, folderId);
   await writeSheetValues(sheetId, serializeReferenceSheet(store));
@@ -91,7 +99,9 @@ export function buildPriceListPromptReferences(
     const alias = normalizeText(unknown.ocr_name);
     const canonical = normalizeText(unknown.correct_name);
 
-    if (!alias || !canonical) continue;
+    if (!alias || !canonical) {
+      continue;
+    }
 
     if (!aliasesByCanonical.has(canonical)) {
       aliasesByCanonical.set(canonical, []);
@@ -142,7 +152,9 @@ export function collectPriceListUnknowns(
 
   for (const itemName of itemNames) {
     const normalized = normalizeText(itemName);
-    if (!normalized || allowed.has(normalized) || seen.has(normalized)) continue;
+    if (!normalized || allowed.has(normalized) || seen.has(normalized)) {
+      continue;
+    }
     seen.add(normalized);
     unknowns.push({ ocr_name: normalized, correct_name: '' });
   }

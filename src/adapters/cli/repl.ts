@@ -60,7 +60,9 @@ export async function startRepl(cronManager: CronManager): Promise<void> {
       }
 
       if (result.handled) {
-        if (result.newConversationId) conversationId = result.newConversationId;
+        if (result.newConversationId) {
+          conversationId = result.newConversationId;
+        }
         rl.resume();
         rl.prompt();
         return;

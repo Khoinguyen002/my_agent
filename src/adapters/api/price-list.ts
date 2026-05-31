@@ -1,10 +1,9 @@
 import { agentCore } from '../../agent/core.js';
-import { env } from '../../config/env.js';
 import {
   buildInvoiceTranscriptionPrompt,
   buildInvoicesTranscriptionSystemPrompt,
 } from '../../prompts/api/invoice-transcription.js';
-import type { AgentInput, StreamDelta } from '../../types/index.js';
+import type { StreamDelta } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import {
   buildPriceListPromptReferences,
@@ -63,12 +62,16 @@ export async function parsePriceListImage(
 
   logger.info('Price-list parse: model output', { length: content.length });
 
-  if (!content) return { items: [], grand_total: null, summary_note: '' };
+  if (!content) {
+    return { items: [], grand_total: null, summary_note: '' };
+  }
 
   let parsed: TranscribedRaw;
   try {
     parsed = JSON.parse(unwrapPriceListJsonContent(content)) as TranscribedRaw;
-    if (!parsed || !Array.isArray(parsed.items)) throw new Error('Invalid JSON shape');
+    if (!parsed || !Array.isArray(parsed.items)) {
+      throw new Error('Invalid JSON shape');
+    }
   } catch (err) {
     return {
       items: [

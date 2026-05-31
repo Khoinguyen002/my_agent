@@ -1,6 +1,19 @@
 # my-agent
 
-A TypeScript CLI agent powered by OpenRouter with Telegram integration, plugable tools, cron scheduling, streaming responses, and reasoning display.
+A TypeScript CLI agent powered by OpenRouter with Telegram integration, pluggable tools, cron scheduling, streaming responses, and reasoning display.
+
+## Features
+
+- 🤖 **AI-Powered Agent** - Powered by OpenRouter with multiple model support
+- 💬 **Telegram Integration** - Run as a Telegram bot
+- 🔧 **Pluggable Tools** - Easy tool registration and execution
+- ⏰ **Cron Scheduling** - Schedule tasks with natural language
+- 📡 **Streaming Responses** - Real-time response streaming
+- 🧠 **Reasoning Display** - Show AI reasoning process
+- 🛡️ **Error Handling** - Comprehensive error handling with custom error classes
+- ✅ **Input Validation** - Zod-based input validation
+- 📊 **Testing** - 106 tests with Vitest
+- 🎨 **Code Quality** - ESLint + Prettier + Pre-commit hooks
 
 ## Setup
 
@@ -10,14 +23,13 @@ cp .env.example .env
 # Edit .env and fill in your values
 ```
 
-### Required env vars
+### Required Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `OPENROUTER_API_KEY` | Your OpenRouter API key |
-| `ROUTER_MODEL` | Model for tool selection (e.g. `qwen/qwen3-8b`) |
-| `EXECUTOR_MODEL` | Model for final response (e.g. `qwen/qwen3-235b-a22b`) |
-| `TELEGRAM_BOT_TOKEN` | Optional — from @BotFather |
+| Variable             | Description                                     |
+| -------------------- | ----------------------------------------------- |
+| `OPENROUTER_API_KEY` | Your OpenRouter API key                         |
+| `MODEL`              | Model for tool selection (e.g. `qwen/qwen3-8b`) |
+| `TELEGRAM_BOT_TOKEN` | Optional — from @BotFather                      |
 
 ## Usage
 
@@ -50,6 +62,7 @@ npx tsx src/index.ts -- --cron-only
 ```
 
 You can also manage crons via natural language:
+
 > "Create a cron job that runs every morning at 9am to summarize my tasks"
 
 ## Adding Tools
@@ -84,13 +97,56 @@ toolRegistry.register(myTool);
 
 Set `API_PORT=3000` in `.env` to enable the HTTP API for price-list image OCR.
 
-See **[docs/api.md](docs/api.md)** for full integration guide: endpoint reference, SSE streaming, batch uploads, Drive folder structure, and code examples in JavaScript and Python.
+### Endpoints
+
+- `POST /api/price-list` - Upload and parse price list images
+- `GET /health` - Health check
+- `GET /ready` - Readiness check
+- `GET /metrics` - Application metrics
+
+### Rate Limiting
+
+- 100 requests per minute per IP
+- Custom error response with retry-after header
+
+### Security Headers
+
+- Content Security Policy (CSP)
+- X-Frame-Options
+- X-Content-Type-Options
+- Strict-Transport-Security
+
+## Development
+
+### Running Tests
+
+```bash
+npm test                    # Run all tests
+npm run test:watch          # Watch mode
+npm run test:coverage       # With coverage
+```
+
+### Code Quality
+
+```bash
+npm run lint                # Check for issues
+npm run lint:fix            # Auto-fix issues
+npm run format              # Format code
+```
+
+### Building
+
+```bash
+npm run build               # Build for production
+npm start                   # Start production server
+```
 
 ## Architecture
 
 ```
 User input
   → AgentCore.run()
+      → Validate input (Zod)
       → Model 1 (router): picks which tools to call
       → Execute tools in parallel (with approval for sensitive ones)
       → Model 2 (executor): streams final response
@@ -98,5 +154,55 @@ User input
 ```
 
 Data is persisted in `./data/`:
+
 - `agent.db` — conversations, messages, user profiles (SQLite)
 - `crons.json` — cron job definitions
+
+## New Modules
+
+### Error Handling
+
+Custom error classes for better error handling:
+
+```typescript
+import { ErrorHandler, ValidationError } from './errors/index.js';
+
+try {
+  await someOperation();
+} catch (error) {
+  const appError = ErrorHandler.handle(error, { operation: 'test' });
+  console.error(appError.toJSON());
+}
+```
+
+### Validation
+
+Zod-based input validation:
+
+```typescript
+import { validate, UserPromptSchema } from './validation/index.js';
+
+const result = validate(UserPromptSchema, userInput);
+if (!result.success) {
+  throw new ValidationError('Invalid input', result.errors);
+}
+```
+
+### Structured Logging
+
+Context-aware logging:
+
+```typescript
+import { logger } from './utils/logger.js';
+
+logger.info('User created', { userId: '123', email: 'user@example.com' });
+logger.error('Operation failed', { operation: 'createUser' }, error);
+```
+
+## Documentation
+
+- [API Documentation](docs/api.md) - API endpoint reference
+
+## License
+
+MIT

@@ -54,7 +54,9 @@ function buildMessages(input: AgentInput): ChatCompletionMessageParam[] {
     const images = Array.isArray(image) ? image : [image];
     for (const img of images) {
       parts.push({ type: 'image_url', image_url: { url: img.url } });
-      if (img.caption) parts.push({ type: 'text', text: img.caption });
+      if (img.caption) {
+        parts.push({ type: 'text', text: img.caption });
+      }
     }
 
     msgs.push({ role: 'user', content: parts });
@@ -70,8 +72,12 @@ function convertResponseFormat(
   | OpenAI.ResponseFormatJSONObject
   | OpenAI.ResponseFormatJSONSchema
   | undefined {
-  if (rf.type === 'text') return { type: 'text' };
-  if (rf.type === 'json_object') return { type: 'json_object' };
+  if (rf.type === 'text') {
+    return { type: 'text' };
+  }
+  if (rf.type === 'json_object') {
+    return { type: 'json_object' };
+  }
   if (rf.type === 'json_schema' && rf.jsonSchema) {
     const js = rf.jsonSchema;
     return {
@@ -90,7 +96,7 @@ function convertResponseFormat(
 function convertTools(sdkTools: Tool[]): ChatCompletionTool[] {
   return sdkTools.map((t) => {
     const fn = t.function;
-    const rawSchema = (fn as any).inputSchema;
+    const rawSchema = (fn as Record<string, unknown>).inputSchema;
     // inputSchema may be a Zod schema (has ._def) or already a plain JSON Schema object
     const parameters =
       rawSchema && typeof rawSchema === 'object' && '_def' in rawSchema
@@ -143,24 +149,36 @@ async function* toolLoop(
       yield chunk;
 
       const delta = chunk.choices[0]?.delta;
-      if (!delta) continue;
+      if (!delta) {
+        continue;
+      }
 
-      if (delta.content) assistantContent += delta.content;
+      if (delta.content) {
+        assistantContent += delta.content;
+      }
 
       for (const tc of delta.tool_calls ?? []) {
         const idx = tc.index;
         if (!toolCallAccum[idx]) {
           toolCallAccum[idx] = { id: tc.id ?? '', name: tc.function?.name ?? '', arguments: '' };
         } else {
-          if (tc.id) toolCallAccum[idx].id = tc.id;
-          if (tc.function?.name) toolCallAccum[idx].name += tc.function.name;
+          if (tc.id) {
+            toolCallAccum[idx].id = tc.id;
+          }
+          if (tc.function?.name) {
+            toolCallAccum[idx].name += tc.function.name;
+          }
         }
-        if (tc.function?.arguments) toolCallAccum[idx].arguments += tc.function.arguments;
+        if (tc.function?.arguments) {
+          toolCallAccum[idx].arguments += tc.function.arguments;
+        }
       }
     }
 
     const toolCalls = Object.values(toolCallAccum);
-    if (toolCalls.length === 0) break; // model is done
+    if (toolCalls.length === 0) {
+      break;
+    } // model is done
 
     // Append assistant turn with tool_calls
     messages.push({
@@ -181,7 +199,7 @@ async function* toolLoop(
       if (sdkTool) {
         try {
           const args = JSON.parse(tc.arguments || '{}') as Record<string, unknown>;
-          const execFn = (sdkTool.function as any).execute as (
+          const execFn = (sdkTool.function as Record<string, unknown>).execute as (
             p: unknown,
             ctx: unknown,
           ) => Promise<unknown>;
@@ -218,5 +236,6 @@ export async function callOpenAICompatModel(
 
   // Wrap the generator in an object that looks like EventStream<ChatStreamChunk>
   // core.ts's else-branch just does: for await (const chunk of result) { chunk.choices[0].delta }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { kind: 'stream', result: generator as any };
 }
