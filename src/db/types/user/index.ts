@@ -11,7 +11,7 @@ export interface UserRow {
 export interface UserProfile {
   id: string;
   name: string;
-  source: 'cli' | 'telegram';
+  source: 'tele';
   sourceId: string;
   expectations?: string;
   onboardedAt: number;
